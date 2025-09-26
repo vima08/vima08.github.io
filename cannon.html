@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Worms-like Game</title>
+    <style>
+        body { text-align: center; background-color: black; color: white; }
+        canvas { background-color: lightblue; display: block; margin: auto; }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+		canvas.width = window.innerWidth - 100;
+        canvas.height = window.innerHeight - 100;
+
+        let gun = { x: 50, y: canvas.height - 50, angle: Math.PI / 4 };
+        let bullet = null;
+        let craters = []; // Список кратеров
+        let explosion = null;
+        const gravity = 0.2;
+        const groundHeight = 50;
+
+        function drawGround() {
+            ctx.fillStyle = "green";
+            ctx.fillRect(0, canvas.height - groundHeight, canvas.width, groundHeight);
+            ctx.fillStyle = "lightblue";
+            // Отрисовываем все кратеры
+            craters.forEach(crater => {
+                ctx.beginPath();
+                ctx.arc(crater.x, crater.y, crater.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function drawGun() {
+            ctx.fillStyle = "gray";
+            ctx.fillRect(gun.x - 5, gun.y - 5, 10, 10);
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(gun.x, gun.y);
+            ctx.lineTo(gun.x + 30 * Math.cos(gun.angle), gun.y - 30 * Math.sin(gun.angle));
+            ctx.stroke();
+        }
+
+        function drawBullet() {
+            if (bullet) {
+                ctx.fillStyle = "black";
+                ctx.beginPath();
+                ctx.arc(bullet.x, bullet.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawExplosion() {
+            if (explosion) {
+                ctx.fillStyle = "red";
+                ctx.beginPath();
+                ctx.arc(explosion.x, explosion.y, explosion.radius, 0, Math.PI * 2);
+                ctx.fill();
+                explosion.radius += 2;
+                if (explosion.radius > 30) {
+                    craters.push({ x: explosion.x, y: explosion.y, radius: 30 }); // Добавляем кратер
+                    explosion = null;
+                }
+            }
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGround();
+            drawGun();
+            drawBullet();
+            drawExplosion();
+            
+            if (bullet) {
+                bullet.x += bullet.vx;
+                bullet.y += bullet.vy;
+                bullet.vy += gravity;
+                
+                if (bullet.y >= canvas.height - groundHeight) {
+                    explosion = { x: bullet.x, y: canvas.height - groundHeight, radius: 5 };
+                    bullet = null;
+                }
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        document.addEventListener("keydown", event => {
+            if (event.key === "ArrowUp") gun.angle += 0.1;
+            if (event.key === "ArrowDown") gun.angle -= 0.1;
+            if (gun.angle < 0) gun.angle = 0;
+            if (gun.angle > Math.PI / 2) gun.angle = Math.PI / 2;
+            if (event.key >= "1" && event.key <= "9") {
+                let speed = (event.key.charCodeAt(0) - 48) * 5;
+                bullet = {
+                    x: gun.x + 30 * Math.cos(gun.angle),
+                    y: gun.y - 30 * Math.sin(gun.angle),
+                    vx: speed * Math.cos(gun.angle),
+                    vy: -speed * Math.sin(gun.angle)
+                };
+            }
+        });
+
+        gameLoop();
+    </script>
+</body>
+</html>
