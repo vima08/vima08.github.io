@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Tower Defence — Archer vs Goblins</title>
+    <style>
+        body {
+            margin: 0;
+            background: #222;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+            font-family: sans-serif;
+        }
+        canvas {
+            background: #333;
+            border: 2px solid #666;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="game" width="900" height="400"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const GRAVITY = 0.4;
+let gameOver = false;
+
+// Лучник
+const archer = {
+    x: 50,
+    y: canvas.height - 50
+};
+
+// Стрелы
+const arrows = [];
+
+// Гоблины
+const goblins = [];
+
+// Спавн гоблинов
+function spawnGoblin() {
+    goblins.push({
+        x: canvas.width + 20,
+        y: canvas.height - 60,
+        w: 30,
+        h: 40,
+        speed: 1 + Math.random()
+    });
+}
+setInterval(spawnGoblin, 1500);
+
+// Стрельба
+canvas.addEventListener("click", (e) => {
+    if (gameOver) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const targetX = e.clientX - rect.left;
+    const targetY = e.clientY - rect.top;
+
+    const dx = targetX - archer.x;
+    const dy = targetY - archer.y;
+
+    const power = 0.08;
+
+    arrows.push({
+        x: archer.x,
+        y: archer.y,
+        vx: dx * power,
+        vy: dy * power
+    });
+});
+
+// Обновление
+function update() {
+    if (gameOver) return;
+
+    // Стрелы
+    for (let a of arrows) {
+        a.vy += GRAVITY;
+        a.x += a.vx;
+        a.y += a.vy;
+    }
+
+    // Гоблины
+    for (let g of goblins) {
+        g.x -= g.speed;
+
+        if (g.x <= archer.x) {
+            gameOver = true;
+        }
+    }
+
+    // Столкновения
+    for (let i = arrows.length - 1; i >= 0; i--) {
+        for (let j = goblins.length - 1; j >= 0; j--) {
+            const a = arrows[i];
+            const g = goblins[j];
+
+            if (
+                a.x > g.x &&
+                a.x < g.x + g.w &&
+                a.y > g.y &&
+                a.y < g.y + g.h
+            ) {
+                arrows.splice(i, 1);
+                goblins.splice(j, 1);
+                break;
+            }
+        }
+    }
+}
+
+// Отрисовка
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Земля
+    ctx.fillStyle = "#555";
+    ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
+
+    // Лучник
+    ctx.fillStyle = "white";
+    ctx.fillRect(archer.x - 10, archer.y - 30, 20, 30);
+
+    // Стрелы
+    ctx.fillStyle = "yellow";
+    for (let a of arrows) {
+        ctx.fillRect(a.x, a.y, 4, 4);
+    }
+
+    // Гоблины
+    ctx.fillStyle = "lime";
+    for (let g of goblins) {
+        ctx.fillRect(g.x, g.y, g.w, g.h);
+    }
+
+    if (gameOver) {
+        ctx.fillStyle = "red";
+        ctx.font = "48px sans-serif";
+        ctx.fillText("GAME OVER", canvas.width / 2 - 140, canvas.height / 2);
+    }
+}
+
+// Игровой цикл
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
+</body>
+</html>
