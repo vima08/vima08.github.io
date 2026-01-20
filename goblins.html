@@ -51,7 +51,7 @@ const archer = {
 };
 
 // Стрелы
-const arrows = [];
+const stones = [];
 
 // Гоблины
 const goblins = [];
@@ -82,7 +82,7 @@ canvas.addEventListener("click", (e) => {
 
     const power = 0.08;
 
-    arrows.push({
+    stones.push({
         x: archer.x,
         y: archer.y,
         vx: dx * power,
@@ -94,11 +94,11 @@ canvas.addEventListener("click", (e) => {
 function update() {
     if (gameOver) return;
 
-    // Стрелы
-    for (let a of arrows) {
-        a.vy += GRAVITY;
-        a.x += a.vx;
-        a.y += a.vy;
+    // Камни
+    for (let s of stones) {
+        s.vy += GRAVITY;
+        s.x += s.vx;
+        s.y += s.vy;
     }
 
     // Гоблины
@@ -111,18 +111,18 @@ function update() {
     }
 
     // Столкновения
-    for (let i = arrows.length - 1; i >= 0; i--) {
+    for (let i = stones.length - 1; i >= 0; i--) {
         for (let j = goblins.length - 1; j >= 0; j--) {
-            const a = arrows[i];
+            const s = stones[i];
             const g = goblins[j];
 
             if (
-                a.x > g.x &&
-                a.x < g.x + g.w &&
-                a.y > g.y &&
-                a.y < g.y + g.h
+                s.x > g.x &&
+                s.x < g.x + g.w &&
+                s.y > g.y &&
+                s.y < g.y + g.h
             ) {
-                arrows.splice(i, 1);
+                stones.splice(i, 1);
                 goblins.splice(j, 1);
                 break;
             }			
@@ -130,13 +130,13 @@ function update() {
     }
 	
 	// камень улетел за пределы 		
-	for (let i = arrows.length - 1; i >= 0; i--) {
-		const a = arrows[i];
+	for (let i = stones.length - 1; i >= 0; i--) {
+		const a = stones[i];
 	
 		if (
 			a.y > canvas.height
 		) {
-			arrows.splice(i, 1);
+			stones.splice(i, 1);
 		}
 	}
 	
@@ -157,7 +157,7 @@ function draw() {
 
     // Стрелы
     ctx.fillStyle = "brown";
-    for (let a of arrows) {
+    for (let a of stones) {
         ctx.fillRect(a.x, a.y, 4, 4);
     }
 
