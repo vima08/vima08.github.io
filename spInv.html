@@ -15,6 +15,36 @@
     .controls{font-size:13px;color:#bcd}
     .center{display:flex;gap:12px;align-items:center}
     .overlay{position:relative}
+
+    .touch-controls {
+      display: none;
+      margin-top: 12px;
+      gap: 16px;
+      justify-content: center;
+    }
+
+    .touch-btn {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      font-size: 28px;
+      background: rgba(255,255,255,0.08);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.2);
+      touch-action: none;
+    }
+
+    .touch-btn.fire {
+      background: rgba(108, 204, 255, 0.25);
+    }
+
+    /* показываем только на тач-устройствах */
+    @media (pointer: coarse) {
+      .touch-controls {
+        display: flex;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -30,6 +60,11 @@
 
     <div class="overlay">
       <canvas id="game" width="900" height="660"></canvas>
+      <div class="touch-controls">
+        <button class="touch-btn" id="btnLeft">◀</button>
+        <button class="touch-btn fire" id="btnFire">●</button>
+        <button class="touch-btn" id="btnRight">▶</button>
+      </div>
     </div>
 
     <div class="small">Корабль временно заменён белым шариком.</div>
@@ -62,6 +97,10 @@
   let enemyDirection = 1; // 1:right, -1:left
   let enemySpeed = 0.4;
   let frame = 0;
+
+  let touchLeft = false;
+  let touchRight = false;
+  let touchFire = false;
 
   // assets
   const shipImg = new Image();
@@ -141,12 +180,12 @@
     frame++;
     if(!player) return;
     // player movement
-    if(keys['ArrowLeft'] || keys['Left']) player.x -= PLAYER_SPEED;
-    if(keys['ArrowRight'] || keys['Right']) player.x += PLAYER_SPEED;
+    if(keys['ArrowLeft'] || keys['Left'] || touchLeft) player.x -= PLAYER_SPEED;
+    if(keys['ArrowRight'] || keys['Right'] || touchRight) player.x += PLAYER_SPEED;
     player.x = clamp(player.x, 16, W-16);
 
     // shooting
-    if(keys[' '] || keys['Space']) firePlayer();
+    if(keys[' '] || keys['Space'] || touchFire) firePlayer();
 
     // update bullets
     bullets.forEach(b=> b.y += b.vy);
@@ -284,7 +323,38 @@
     keys[e.key] = true;
     if(['ArrowLeft','ArrowRight',' ','Space'].includes(e.key)) e.preventDefault();
   });
+
   window.addEventListener('keyup', (e)=>{ keys[e.key] = false; });
+
+  function bindTouch(btn, onStart, onEnd) {
+    btn.addEventListener("touchstart", e => {
+      e.preventDefault();
+      onStart();
+    });
+    btn.addEventListener("touchend", e => {
+      e.preventDefault();
+      onEnd();
+    });
+    btn.addEventListener("touchcancel", onEnd);
+  }
+
+  bindTouch(
+    document.getElementById("btnLeft"),
+    () => touchLeft = true,
+    () => touchLeft = false
+  );
+
+  bindTouch(
+    document.getElementById("btnRight"),
+    () => touchRight = true,
+    () => touchRight = false
+  );
+
+  bindTouch(
+    document.getElementById("btnFire"),
+    () => touchFire = true,
+    () => touchFire = false
+  );
 
   startBtn.addEventListener('click', ()=>{
     if(gameOver) {
