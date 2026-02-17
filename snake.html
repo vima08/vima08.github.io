@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Snake</title>
+    <style>
+      body {
+        background: #111;
+        color: #fff;
+        text-align: center;
+        font-family: sans-serif;
+      }
+
+      canvas {
+        background: #000;
+        border: 2px solid #3f3;
+        margin: auto;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Snake</h1>
+    <p>Arrow keys to move. Eat food to grow.</p>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+
+    <script>
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+
+      const GRID_SIZE = 20;
+      const TILE_COUNT = 20;
+
+      let snake = [{ x: 10, y: 10 }];
+      let direction = { x: 1, y: 0 };
+      let food = { x: 15, y: 15 };
+      let score = 0;
+      let isAlive = true;
+
+      function placeFood() {
+        food = {
+          x: Math.floor(Math.random() * TILE_COUNT),
+          y: Math.floor(Math.random() * TILE_COUNT),
+        };
+      }
+
+      function update() {
+        if (!isAlive) return;
+
+        const nextHead = {
+          x: snake[0].x + direction.x,
+          y: snake[0].y + direction.y,
+        };
+
+        const hitWall =
+          nextHead.x < 0 ||
+          nextHead.x >= TILE_COUNT ||
+          nextHead.y < 0 ||
+          nextHead.y >= TILE_COUNT;
+
+        const hitSelf = snake.some(
+          (segment) => segment.x === nextHead.x && segment.y === nextHead.y,
+        );
+
+        if (hitWall || hitSelf) {
+          isAlive = false;
+          draw();
+          return;
+        }
+
+        snake.unshift(nextHead);
+
+        if (nextHead.x === food.x && nextHead.y === food.y) {
+          score += 1;
+          placeFood();
+        } else {
+          snake.pop();
+        }
+
+        draw();
+      }
+
+      function draw() {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = 'red';
+        ctx.fillRect(food.x * GRID_SIZE, food.y * GRID_SIZE, GRID_SIZE - 1, GRID_SIZE - 1);
+
+        ctx.fillStyle = '#0f0';
+        snake.forEach((segment) => {
+          ctx.fillRect(segment.x * GRID_SIZE, segment.y * GRID_SIZE, GRID_SIZE - 1, GRID_SIZE - 1);
+        });
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '14px sans-serif';
+        ctx.fillText(`Score: ${score}`, 10, 16);
+
+        if (!isAlive) {
+          ctx.font = '24px sans-serif';
+          ctx.fillText('Game Over', 140, 200);
+        }
+      }
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowUp' && direction.y !== 1) direction = { x: 0, y: -1 };
+        if (event.key === 'ArrowDown' && direction.y !== -1) direction = { x: 0, y: 1 };
+        if (event.key === 'ArrowLeft' && direction.x !== 1) direction = { x: -1, y: 0 };
+        if (event.key === 'ArrowRight' && direction.x !== -1) direction = { x: 1, y: 0 };
+      });
+
+      draw();
+      setInterval(update, 120);
+    </script>
+  </body>
+</html>

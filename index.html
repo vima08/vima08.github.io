@@ -1,7 +1,61 @@
-<h1> Test </h1>
-<a href="/pong.html">pong</a>
-<a href="/cannon.html">cannon</a>
-<a href="/spInv.html">space invaders</a>
-<a href="/goblins.html">goblins</a>
-
-<a href="/arkanoid.html">arkanoid</a>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mini Games Collection</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #101522;
+      color: #f4f4f4;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1 {
+      margin-top: 0;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    a {
+      display: block;
+      padding: 14px;
+      background: #1f2a44;
+      color: #fff;
+      border-radius: 8px;
+      text-decoration: none;
+      border: 1px solid #2f3d61;
+    }
+    a:hover {
+      background: #2a3a61;
+    }
+    p { color: #c9d1e3; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Mini HTML/JS Games</h1>
+    <p>Select a game:</p>
+    <div class="grid">
+      <a href="/pong.html">Pong</a>
+      <a href="/cannon.html">Cannon</a>
+      <a href="/spInv.html">Space Invaders</a>
+      <a href="/goblins.html">Goblins</a>
+      <a href="/arkanoid.html">Arkanoid</a>
+      <a href="/snake.html">Snake </a>
+      <a href="/asteroids.html">Asteroids </a>
+      <a href="/tetris.html">Tetris </a>
+      <a href="/tic-tac-toe.html">Tic-Tac-Toe </a>
+      <a href="/minesweeper.html">Minesweeper </a>
+      <a href="/frogger.html">Frogger </a>
+    </div>
+  </div>
+</body>
+</html>

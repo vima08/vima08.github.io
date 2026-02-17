@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tetris</title>
+    <style>
+      body {
+        background: #111;
+        color: #fff;
+        text-align: center;
+        font-family: sans-serif;
+      }
+
+      canvas {
+        background: #000;
+        margin: auto;
+        display: block;
+        border: 2px solid #555;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Tetris</h1>
+    <p>← → move, ↑ rotate, ↓ soft drop</p>
+    <canvas id="gameCanvas" width="300" height="600"></canvas>
+
+    <script>
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+
+      const CELL_SIZE = 30;
+      const BOARD_WIDTH = 10;
+      const BOARD_HEIGHT = 20;
+
+      let board = Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill(0));
+
+      const PIECES = [
+        [
+          [1, 1, 1],
+          [0, 1, 0],
+        ],
+        [
+          [1, 1],
+          [1, 1],
+        ],
+        [[1, 1, 1, 1]],
+        [
+          [1, 1, 0],
+          [0, 1, 1],
+        ],
+        [
+          [0, 1, 1],
+          [1, 1, 0],
+        ],
+        [
+          [1, 0, 0],
+          [1, 1, 1],
+        ],
+        [
+          [0, 0, 1],
+          [1, 1, 1],
+        ],
+      ];
+
+      let currentPiece = {
+        matrix: PIECES[Math.floor(Math.random() * PIECES.length)],
+        x: 3,
+        y: 0,
+      };
+
+      function collides(newX = currentPiece.x, newY = currentPiece.y, matrix = currentPiece.matrix) {
+        for (let y = 0; y < matrix.length; y += 1) {
+          for (let x = 0; x < matrix[y].length; x += 1) {
+            if (!matrix[y][x]) continue;
+            if (board[newY + y]?.[newX + x] !== 0) return true;
+          }
+        }
+        return false;
+      }
+
+      function mergePiece() {
+        currentPiece.matrix.forEach((row, y) => {
+          row.forEach((value, x) => {
+            if (value) {
+              board[currentPiece.y + y][currentPiece.x + x] =
+                '#' + ((Math.random() * 0xffffff) | 0).toString(16).padStart(6, '0');
+            }
+          });
+        });
+
+        for (let y = BOARD_HEIGHT - 1; y >= 0; y -= 1) {
+          if (board[y].every(Boolean)) {
+            board.splice(y, 1);
+            board.unshift(Array(BOARD_WIDTH).fill(0));
+            y += 1;
+          }
+        }
+
+        currentPiece = {
+          matrix: PIECES[Math.floor(Math.random() * PIECES.length)],
+          x: 3,
+          y: 0,
+        };
+
+        if (collides()) {
+          board = Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill(0));
+        }
+      }
+
+      function rotate(matrix) {
+        return matrix[0].map((_, i) => matrix.map((row) => row[i]).reverse());
+      }
+
+      function tick() {
+        if (!collides(currentPiece.x, currentPiece.y + 1)) {
+          currentPiece.y += 1;
+        } else {
+          mergePiece();
+        }
+        draw();
+      }
+
+      function draw() {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        for (let y = 0; y < BOARD_HEIGHT; y += 1) {
+          for (let x = 0; x < BOARD_WIDTH; x += 1) {
+            if (!board[y][x]) continue;
+            ctx.fillStyle = board[y][x];
+            ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE - 1, CELL_SIZE - 1);
+          }
+        }
+
+        ctx.fillStyle = '#0ff';
+        currentPiece.matrix.forEach((row, y) => {
+          row.forEach((value, x) => {
+            if (value) {
+              ctx.fillRect(
+                (currentPiece.x + x) * CELL_SIZE,
+                (currentPiece.y + y) * CELL_SIZE,
+                CELL_SIZE - 1,
+                CELL_SIZE - 1,
+              );
+            }
+          });
+        });
+      }
+
+      window.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowLeft' && !collides(currentPiece.x - 1, currentPiece.y)) {
+          currentPiece.x -= 1;
+        }
+
+        if (event.key === 'ArrowRight' && !collides(currentPiece.x + 1, currentPiece.y)) {
+          currentPiece.x += 1;
+        }
+
+        if (event.key === 'ArrowDown' && !collides(currentPiece.x, currentPiece.y + 1)) {
+          currentPiece.y += 1;
+        }
+
+        if (event.key === 'ArrowUp') {
+          const rotated = rotate(currentPiece.matrix);
+          if (!collides(currentPiece.x, currentPiece.y, rotated)) {
+            currentPiece.matrix = rotated;
+          }
+        }
+
+        draw();
+      });
+
+      draw();
+      setInterval(tick, 400);
+    </script>
+  </body>
+</html>
