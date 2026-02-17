@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Frogger</title>
+    <style>
+      body {
+        background: #06131e;
+        color: #fff;
+        text-align: center;
+        font-family: sans-serif;
+      }
+
+      canvas {
+        background: #0b2233;
+        display: block;
+        margin: auto;
+        border: 1px solid #88a;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Frogger</h1>
+    <p>Arrow keys to cross road and river.</p>
+    <canvas id="gameCanvas" width="500" height="500"></canvas>
+
+    <script>
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+
+      const frog = { x: 240, y: 460, w: 20, h: 20 };
+      const cars = [];
+      const logs = [];
+      let goals = 0;
+
+      for (let row = 0; row < 4; row += 1) {
+        for (let i = 0; i < 3; i += 1) {
+          cars.push({
+            x: i * 180 + row * 30,
+            y: 300 + row * 35,
+            w: 60,
+            h: 24,
+            speed: (row % 2 ? 2 : -2) * (1 + row * 0.15),
+          });
+        }
+      }
+
+      for (let row = 0; row < 3; row += 1) {
+        for (let i = 0; i < 2; i += 1) {
+          logs.push({
+            x: i * 250 + row * 40,
+            y: 90 + row * 45,
+            w: 110,
+            h: 24,
+            speed: row % 2 ? -1.5 : 1.5,
+          });
+        }
+      }
+
+      function resetFrog() {
+        frog.x = 240;
+        frog.y = 460;
+      }
+
+      function overlaps(a, b) {
+        return (
+          a.x < b.x + b.w &&
+          a.x + a.w > b.x &&
+          a.y < b.y + b.h &&
+          a.y + a.h > b.y
+        );
+      }
+
+      window.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowUp') frog.y -= 35;
+        if (event.key === 'ArrowDown') frog.y += 35;
+        if (event.key === 'ArrowLeft') frog.x -= 25;
+        if (event.key === 'ArrowRight') frog.x += 25;
+
+        frog.x = Math.max(0, Math.min(480, frog.x));
+        frog.y = Math.max(0, Math.min(480, frog.y));
+      });
+
+      function drawScene() {
+        ctx.fillStyle = '#0b2233';
+        ctx.fillRect(0, 0, 500, 500);
+
+        // Safe zones
+        ctx.fillStyle = '#173b1a';
+        ctx.fillRect(0, 0, 500, 60);
+        ctx.fillRect(0, 440, 500, 60);
+
+        // Road and river zones
+        ctx.fillStyle = '#333';
+        ctx.fillRect(0, 260, 500, 170);
+        ctx.fillStyle = '#164a7a';
+        ctx.fillRect(0, 70, 500, 150);
+      }
+
+      function updateAndDrawObjects() {
+        cars.forEach((car) => {
+          car.x = (car.x + car.speed + 560) % 560 - 30;
+          ctx.fillStyle = '#e85';
+          ctx.fillRect(car.x, car.y, car.w, car.h);
+          if (overlaps(frog, car)) resetFrog();
+        });
+
+        let onLog = false;
+        logs.forEach((log) => {
+          log.x = (log.x + log.speed + 620) % 620 - 60;
+          ctx.fillStyle = '#8b5a2b';
+          ctx.fillRect(log.x, log.y, log.w, log.h);
+
+          if (overlaps(frog, log)) {
+            frog.x += log.speed;
+            onLog = true;
+          }
+        });
+
+        if (frog.y < 230 && frog.y > 70 && !onLog) {
+          resetFrog();
+        }
+
+        if (frog.y < 60) {
+          goals += 1;
+          resetFrog();
+        }
+      }
+
+      function drawFrogAndHud() {
+        ctx.fillStyle = '#0f0';
+        ctx.fillRect(frog.x, frog.y, frog.w, frog.h);
+
+        ctx.fillStyle = '#fff';
+        ctx.fillText(`Goals: ${goals}`, 10, 16);
+      }
+
+      function gameLoop() {
+        drawScene();
+        updateAndDrawObjects();
+        drawFrogAndHud();
+        requestAnimationFrame(gameLoop);
+      }
+
+      gameLoop();
+    </script>
+  </body>
+</html>

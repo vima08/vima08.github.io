@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tic-Tac-Toe</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        background: #20242b;
+        color: #fff;
+        text-align: center;
+      }
+
+      .grid {
+        width: 306px;
+        margin: 20px auto;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 3px;
+      }
+
+      .cell {
+        height: 100px;
+        background: #2f3642;
+        font-size: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Tic-Tac-Toe</h1>
+    <p id="status">Turn: X</p>
+    <div class="grid" id="grid"></div>
+    <button onclick="resetGame()">Reset</button>
+
+    <script>
+      const grid = document.getElementById('grid');
+      const statusText = document.getElementById('status');
+
+      let board = Array(9).fill('');
+      let currentPlayer = 'X';
+      let isFinished = false;
+
+      const winningLines = [
+        [0, 1, 2],
+        [3, 4, 5],
+        [6, 7, 8],
+        [0, 3, 6],
+        [1, 4, 7],
+        [2, 5, 8],
+        [0, 4, 8],
+        [2, 4, 6],
+      ];
+
+      function getWinningLine() {
+        return winningLines.find((line) =>
+          line.every((i) => board[i] && board[i] === board[line[0]]),
+        );
+      }
+
+      function render() {
+        grid.innerHTML = '';
+
+        board.forEach((value, index) => {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.textContent = value;
+          cell.addEventListener('click', () => play(index));
+          grid.appendChild(cell);
+        });
+
+        const line = getWinningLine();
+        if (line) {
+          isFinished = true;
+          statusText.textContent = `Winner: ${board[line[0]]}`;
+        } else if (board.every(Boolean)) {
+          isFinished = true;
+          statusText.textContent = 'Draw';
+        } else {
+          statusText.textContent = `Turn: ${currentPlayer}`;
+        }
+      }
+
+      function play(index) {
+        if (isFinished || board[index]) return;
+
+        board[index] = currentPlayer;
+        currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+        render();
+      }
+
+      function resetGame() {
+        board = Array(9).fill('');
+        currentPlayer = 'X';
+        isFinished = false;
+        render();
+      }
+
+      render();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Minesweeper</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: #111;
+        color: #fff;
+        text-align: center;
+      }
+
+      .board {
+        display: grid;
+        grid-template-columns: repeat(10, 32px);
+        gap: 2px;
+        justify-content: center;
+      }
+
+      .cell {
+        width: 32px;
+        height: 32px;
+        background: #555;
+        line-height: 32px;
+        cursor: pointer;
+        font-weight: bold;
+      }
+
+      .open {
+        background: #ddd;
+        color: #111;
+      }
+
+      .mine {
+        background: #c00;
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Minesweeper</h1>
+    <p>Left click to reveal. Find all safe cells.</p>
+    <div id="status"></div>
+    <div class="board" id="board"></div>
+
+    <script>
+      const WIDTH = 10;
+      const HEIGHT = 10;
+      const MINES = 15;
+
+      const boardEl = document.getElementById('board');
+      const statusEl = document.getElementById('status');
+
+      let cells = [];
+
+      function init() {
+        cells = Array.from({ length: WIDTH * HEIGHT }, () => ({
+          isMine: false,
+          isOpen: false,
+          nearbyMines: 0,
+        }));
+
+        for (let i = 0; i < MINES; i += 1) {
+          let pos;
+          do {
+            pos = Math.floor(Math.random() * cells.length);
+          } while (cells[pos].isMine);
+          cells[pos].isMine = true;
+        }
+
+        for (let i = 0; i < cells.length; i += 1) {
+          const x = i % WIDTH;
+          const y = Math.floor(i / WIDTH);
+          let count = 0;
+
+          for (let dy = -1; dy <= 1; dy += 1) {
+            for (let dx = -1; dx <= 1; dx += 1) {
+              if (dx === 0 && dy === 0) continue;
+              const nx = x + dx;
+              const ny = y + dy;
+
+              if (nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT) {
+                if (cells[ny * WIDTH + nx].isMine) count += 1;
+              }
+            }
+          }
+
+          cells[i].nearbyMines = count;
+        }
+
+        statusEl.textContent = '';
+        render();
+      }
+
+      function openCell(index) {
+        if (cells[index].isOpen) return;
+
+        cells[index].isOpen = true;
+
+        if (cells[index].isMine) {
+          statusEl.textContent = 'Game over';
+          cells.forEach((cell) => {
+            cell.isOpen = true;
+          });
+          render();
+          return;
+        }
+
+        if (cells[index].nearbyMines === 0) {
+          const x = index % WIDTH;
+          const y = Math.floor(index / WIDTH);
+
+          for (let dy = -1; dy <= 1; dy += 1) {
+            for (let dx = -1; dx <= 1; dx += 1) {
+              const nx = x + dx;
+              const ny = y + dy;
+              if (nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT) {
+                openCell(ny * WIDTH + nx);
+              }
+            }
+          }
+        }
+
+        render();
+
+        const unopenedSafeCells = cells.filter((cell) => !cell.isMine && !cell.isOpen).length;
+        if (unopenedSafeCells === 0) {
+          statusEl.textContent = 'You win!';
+        }
+      }
+
+      function render() {
+        boardEl.innerHTML = '';
+
+        cells.forEach((cell, index) => {
+          const cellEl = document.createElement('div');
+          cellEl.className = 'cell';
+
+          if (cell.isOpen) {
+            cellEl.classList.add('open');
+            if (cell.isMine) {
+              cellEl.classList.add('mine');
+              cellEl.textContent = '*';
+            } else {
+              cellEl.textContent = cell.nearbyMines || '';
+            }
+          }
+
+          cellEl.addEventListener('click', () => openCell(index));
+          boardEl.appendChild(cellEl);
+        });
+      }
+
+      init();
+    </script>
+  </body>
+</html>
