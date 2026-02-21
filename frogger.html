@@ -5,162 +5,267 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Frogger</title>
     <style>
+      :root {
+        color-scheme: dark;
+      }
+
       body {
-        background: #06131e;
-        color: #fff;
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at top, #11314a 0%, #08131f 55%);
+        color: #eaf6ff;
+        font-family: Arial, Helvetica, sans-serif;
+      }
+
+      main {
         text-align: center;
-        font-family: sans-serif;
       }
 
       canvas {
-        background: #0b2233;
         display: block;
-        margin: auto;
-        border: 1px solid #88a;
+        margin: 12px auto 0;
+        border: 2px solid #8ec6ff;
+        box-shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
+        background: #041424;
+      }
+
+      p {
+        margin: 6px 0;
       }
     </style>
   </head>
   <body>
-    <h1>Frogger</h1>
-    <p>Arrow keys to cross road and river.</p>
-    <canvas id="gameCanvas" width="640" height="500"></canvas>
+    <main>
+      <h1>Frogger</h1>
+      <p>Cross the road and river. Arrow keys move one tile.</p>
+      <p id="hud"></p>
+      <canvas id="gameCanvas" width="640" height="520"></canvas>
+    </main>
 
     <script>
       const canvas = document.getElementById('gameCanvas');
+      const hud = document.getElementById('hud');
       const ctx = canvas.getContext('2d');
 
-      const CANVAS_WIDTH = 640;
-      const CANVAS_HEIGHT = 500;
-      const TILE = 20;
-      const FROG_START_X = Math.floor((CANVAS_WIDTH - TILE) / 2 / TILE) * TILE;
-      const FROG_START_Y = 460;
-      const frog = { x: FROG_START_X, y: FROG_START_Y, w: TILE, h: TILE };
-      const cars = [];
-      const logs = [];
-      let goals = 0;
+      const WIDTH = canvas.width;
+      const HEIGHT = canvas.height;
+      const TILE = 40;
+      const COLS = WIDTH / TILE;
+      const ROWS = HEIGHT / TILE;
 
-      for (let row = 0; row < 4; row += 1) {
-        for (let i = 0; i < 3; i += 1) {
-          cars.push({
-            x: i * 180 + row * 30,
-            y: 300 + row * 35,
-            w: 60,
-            h: 24,
-            speed: (row % 2 ? 1.2 : -1.2) * (1 + row * 0.12),
+      const Y = {
+        GOAL: 0,
+        RIVER_1: 2,
+        RIVER_2: 3,
+        RIVER_3: 4,
+        MEDIAN: 6,
+        ROAD_1: 7,
+        ROAD_2: 8,
+        ROAD_3: 9,
+        START: 12,
+      };
+
+      const ROAD_ROWS = [Y.ROAD_1, Y.ROAD_2, Y.ROAD_3];
+      const RIVER_ROWS = [Y.RIVER_1, Y.RIVER_2, Y.RIVER_3];
+
+      const lanes = [
+        { type: 'river', row: Y.RIVER_1, speed: 70, items: [] },
+        { type: 'river', row: Y.RIVER_2, speed: -95, items: [] },
+        { type: 'river', row: Y.RIVER_3, speed: 60, items: [] },
+        { type: 'road', row: Y.ROAD_1, speed: -135, items: [] },
+        { type: 'road', row: Y.ROAD_2, speed: 165, items: [] },
+        { type: 'road', row: Y.ROAD_3, speed: -150, items: [] },
+      ];
+
+      function spawnLaneItems(lane, widthTiles, count) {
+        const gap = WIDTH / count;
+        for (let i = 0; i < count; i += 1) {
+          lane.items.push({
+            x: i * gap,
+            w: widthTiles * TILE,
+            h: TILE - 8,
           });
         }
       }
 
-      for (let row = 0; row < 3; row += 1) {
-        for (let i = 0; i < 2; i += 1) {
-          logs.push({
-            x: i * 250 + row * 40,
-            y: 90 + row * 45,
-            w: 110,
-            h: 24,
-            speed: row % 2 ? -0.9 : 0.9,
-          });
-        }
+      lanes.forEach((lane) => {
+        if (lane.type === 'river') spawnLaneItems(lane, 2.5, 3);
+        if (lane.type === 'road') spawnLaneItems(lane, 1.7, 4);
+      });
+
+      const frog = {
+        col: Math.floor(COLS / 2),
+        row: Y.START,
+        x: 0,
+        y: 0,
+      };
+
+      function syncFrogPosition() {
+        frog.x = frog.col * TILE;
+        frog.y = frog.row * TILE;
       }
+
+      syncFrogPosition();
+
+      let score = 0;
+      let deaths = 0;
+      let lastStepTime = 0;
+      const STEP_DELAY_MS = 110;
 
       function resetFrog() {
-        frog.x = FROG_START_X;
-        frog.y = FROG_START_Y;
+        frog.col = Math.floor(COLS / 2);
+        frog.row = Y.START;
+        syncFrogPosition();
       }
 
-      function snapToGrid(value) {
-        return Math.round(value / TILE) * TILE;
-      }
-
-      function overlaps(a, b) {
+      function overlaps(frogRect, objRect) {
         return (
-          a.x < b.x + b.w &&
-          a.x + a.w > b.x &&
-          a.y < b.y + b.h &&
-          a.y + a.h > b.y
+          frogRect.x < objRect.x + objRect.w &&
+          frogRect.x + TILE > objRect.x &&
+          frogRect.y < objRect.y + objRect.h &&
+          frogRect.y + TILE > objRect.y
         );
       }
 
-      window.addEventListener('keydown', (event) => {
-        if (event.key === 'ArrowUp') frog.y -= TILE;
-        if (event.key === 'ArrowDown') frog.y += TILE;
-        if (event.key === 'ArrowLeft') frog.x -= TILE;
-        if (event.key === 'ArrowRight') frog.x += TILE;
+      function laneY(row) {
+        return row * TILE + 4;
+      }
 
-        frog.x = Math.max(0, Math.min(CANVAS_WIDTH - frog.w, snapToGrid(frog.x)));
-        frog.y = Math.max(0, Math.min(CANVAS_HEIGHT - frog.h, snapToGrid(frog.y)));
+      function moveFrog(dx, dy) {
+        frog.col = Math.max(0, Math.min(COLS - 1, frog.col + dx));
+        frog.row = Math.max(0, Math.min(ROWS - 1, frog.row + dy));
+        syncFrogPosition();
+      }
+
+      window.addEventListener('keydown', (event) => {
+        const now = performance.now();
+        if (now - lastStepTime < STEP_DELAY_MS) return;
+
+        if (event.key === 'ArrowUp') moveFrog(0, -1);
+        if (event.key === 'ArrowDown') moveFrog(0, 1);
+        if (event.key === 'ArrowLeft') moveFrog(-1, 0);
+        if (event.key === 'ArrowRight') moveFrog(1, 0);
+
+        if (event.key.startsWith('Arrow')) {
+          event.preventDefault();
+          lastStepTime = now;
+        }
       });
 
-      function drawScene() {
-        ctx.fillStyle = '#0b2233';
-        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-        // Safe zones
-        ctx.fillStyle = '#173b1a';
-        ctx.fillRect(0, 0, CANVAS_WIDTH, 60);
-        ctx.fillRect(0, 440, CANVAS_WIDTH, 60);
-
-        // Road and river zones
-        ctx.fillStyle = '#333';
-        ctx.fillRect(0, 260, CANVAS_WIDTH, 170);
-        ctx.fillStyle = '#164a7a';
-        ctx.fillRect(0, 70, CANVAS_WIDTH, 150);
-      }
-
-      function updateAndDrawObjects(speedFactor) {
-        cars.forEach((car) => {
-          car.x = (car.x + car.speed * speedFactor + CANVAS_WIDTH + 60) % (CANVAS_WIDTH + 60) - 30;
-          ctx.fillStyle = '#e85';
-          ctx.fillRect(car.x, car.y, car.w, car.h);
-          if (overlaps(frog, car)) resetFrog();
+      function update(dt) {
+        lanes.forEach((lane) => {
+          lane.items.forEach((item) => {
+            item.x += lane.speed * dt;
+            if (lane.speed > 0 && item.x > WIDTH + item.w) item.x = -item.w;
+            if (lane.speed < 0 && item.x < -item.w) item.x = WIDTH + item.w;
+          });
         });
 
-        let onLog = false;
-        logs.forEach((log) => {
-          log.x = (log.x + log.speed * speedFactor + CANVAS_WIDTH + 120) % (CANVAS_WIDTH + 120) - 60;
-          ctx.fillStyle = '#8b5a2b';
-          ctx.fillRect(log.x, log.y, log.w, log.h);
+        const frogRect = { x: frog.x + 2, y: frog.y + 2 };
 
-          if (overlaps(frog, log)) {
-            frog.x += log.speed * speedFactor;
-            onLog = true;
+        for (const lane of lanes) {
+          if (lane.type === 'road' && lane.row === frog.row) {
+            for (const car of lane.items) {
+              const carRect = { x: car.x, y: laneY(lane.row), w: car.w, h: car.h };
+              if (overlaps(frogRect, carRect)) {
+                deaths += 1;
+                resetFrog();
+                return;
+              }
+            }
           }
+
+          if (lane.type === 'river' && lane.row === frog.row) {
+            let onLog = false;
+            for (const log of lane.items) {
+              const logRect = { x: log.x, y: laneY(lane.row), w: log.w, h: log.h };
+              if (overlaps(frogRect, logRect)) {
+                frog.x += lane.speed * dt;
+                frog.col = Math.round(frog.x / TILE);
+                onLog = true;
+              }
+            }
+            if (!onLog) {
+              deaths += 1;
+              resetFrog();
+              return;
+            }
+          }
+        }
+
+        frog.x = Math.max(0, Math.min(WIDTH - TILE, frog.x));
+        frog.col = Math.round(frog.x / TILE);
+
+        if (frog.row === Y.GOAL) {
+          score += 1;
+          resetFrog();
+        }
+      }
+
+      function drawBackground() {
+        ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+        ctx.fillStyle = '#1a4d1f';
+        ctx.fillRect(0, Y.GOAL * TILE, WIDTH, TILE);
+        ctx.fillRect(0, Y.START * TILE, WIDTH, TILE);
+
+        ctx.fillStyle = '#13548f';
+        RIVER_ROWS.forEach((row) => ctx.fillRect(0, row * TILE, WIDTH, TILE));
+
+        ctx.fillStyle = '#31343c';
+        ROAD_ROWS.forEach((row) => ctx.fillRect(0, row * TILE, WIDTH, TILE));
+
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        for (let row = 0; row < ROWS; row += 1) {
+          ctx.beginPath();
+          ctx.moveTo(0, row * TILE);
+          ctx.lineTo(WIDTH, row * TILE);
+          ctx.stroke();
+        }
+      }
+
+      function draw() {
+        drawBackground();
+
+        lanes.forEach((lane) => {
+          lane.items.forEach((item) => {
+            if (lane.type === 'road') {
+              ctx.fillStyle = '#f37935';
+            } else {
+              ctx.fillStyle = '#8a5a2d';
+            }
+            ctx.fillRect(item.x, laneY(lane.row), item.w, item.h);
+          });
         });
 
-        frog.x = Math.max(0, Math.min(CANVAS_WIDTH - frog.w, frog.x));
+        ctx.fillStyle = '#42f56f';
+        ctx.fillRect(frog.x + 3, frog.y + 3, TILE - 6, TILE - 6);
 
-        if (frog.y < 230 && frog.y > 70 && !onLog) {
-          resetFrog();
+        hud.textContent = `Score: ${score} | Deaths: ${deaths}`;
+      }
+
+      // Fixed timestep keeps speed consistent on slow and fast machines.
+      let last = performance.now();
+      let accumulator = 0;
+      const STEP = 1 / 120;
+
+      function frame(now) {
+        const delta = Math.min((now - last) / 1000, 0.1);
+        last = now;
+        accumulator += delta;
+
+        while (accumulator >= STEP) {
+          update(STEP);
+          accumulator -= STEP;
         }
 
-        if (frog.y < 60) {
-          goals += 1;
-          resetFrog();
-        }
+        draw();
+        requestAnimationFrame(frame);
       }
 
-      function drawFrogAndHud() {
-        ctx.fillStyle = '#0f0';
-        ctx.fillRect(frog.x, frog.y, frog.w, frog.h);
-
-        ctx.fillStyle = '#fff';
-        ctx.fillText(`Goals: ${goals}`, 10, 16);
-      }
-
-      let lastTime = performance.now();
-
-      function gameLoop(timestamp) {
-        const deltaSeconds = (timestamp - lastTime) / 1000;
-        lastTime = timestamp;
-        const speedFactor = Math.min(deltaSeconds * 60, 2);
-
-        drawScene();
-        updateAndDrawObjects(speedFactor);
-        drawFrogAndHud();
-        requestAnimationFrame(gameLoop);
-      }
-
-      requestAnimationFrame(gameLoop);
+      requestAnimationFrame(frame);
     </script>
   </body>
 </html>
