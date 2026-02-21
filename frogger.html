@@ -23,15 +23,16 @@
   <body>
     <h1>Frogger</h1>
     <p>Arrow keys to cross road and river.</p>
-    <canvas id="gameCanvas" width="500" height="500"></canvas>
+    <canvas id="gameCanvas" width="640" height="500"></canvas>
 
     <script>
       const canvas = document.getElementById('gameCanvas');
       const ctx = canvas.getContext('2d');
 
-      const CANVAS_SIZE = 500;
+      const CANVAS_WIDTH = 640;
+      const CANVAS_HEIGHT = 500;
       const TILE = 20;
-      const FROG_START_X = 240;
+      const FROG_START_X = Math.floor((CANVAS_WIDTH - TILE) / 2 / TILE) * TILE;
       const FROG_START_Y = 460;
       const frog = { x: FROG_START_X, y: FROG_START_Y, w: TILE, h: TILE };
       const cars = [];
@@ -45,7 +46,7 @@
             y: 300 + row * 35,
             w: 60,
             h: 24,
-            speed: (row % 2 ? 2 : -2) * (1 + row * 0.15),
+            speed: (row % 2 ? 1.2 : -1.2) * (1 + row * 0.12),
           });
         }
       }
@@ -57,7 +58,7 @@
             y: 90 + row * 45,
             w: 110,
             h: 24,
-            speed: row % 2 ? -1.5 : 1.5,
+            speed: row % 2 ? -0.9 : 0.9,
           });
         }
       }
@@ -86,29 +87,29 @@
         if (event.key === 'ArrowLeft') frog.x -= TILE;
         if (event.key === 'ArrowRight') frog.x += TILE;
 
-        frog.x = Math.max(0, Math.min(CANVAS_SIZE - frog.w, snapToGrid(frog.x)));
-        frog.y = Math.max(0, Math.min(CANVAS_SIZE - frog.h, snapToGrid(frog.y)));
+        frog.x = Math.max(0, Math.min(CANVAS_WIDTH - frog.w, snapToGrid(frog.x)));
+        frog.y = Math.max(0, Math.min(CANVAS_HEIGHT - frog.h, snapToGrid(frog.y)));
       });
 
       function drawScene() {
         ctx.fillStyle = '#0b2233';
-        ctx.fillRect(0, 0, 500, 500);
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
         // Safe zones
         ctx.fillStyle = '#173b1a';
-        ctx.fillRect(0, 0, 500, 60);
-        ctx.fillRect(0, 440, 500, 60);
+        ctx.fillRect(0, 0, CANVAS_WIDTH, 60);
+        ctx.fillRect(0, 440, CANVAS_WIDTH, 60);
 
         // Road and river zones
         ctx.fillStyle = '#333';
-        ctx.fillRect(0, 260, 500, 170);
+        ctx.fillRect(0, 260, CANVAS_WIDTH, 170);
         ctx.fillStyle = '#164a7a';
-        ctx.fillRect(0, 70, 500, 150);
+        ctx.fillRect(0, 70, CANVAS_WIDTH, 150);
       }
 
       function updateAndDrawObjects(speedFactor) {
         cars.forEach((car) => {
-          car.x = (car.x + car.speed * speedFactor + 560) % 560 - 30;
+          car.x = (car.x + car.speed * speedFactor + CANVAS_WIDTH + 60) % (CANVAS_WIDTH + 60) - 30;
           ctx.fillStyle = '#e85';
           ctx.fillRect(car.x, car.y, car.w, car.h);
           if (overlaps(frog, car)) resetFrog();
@@ -116,7 +117,7 @@
 
         let onLog = false;
         logs.forEach((log) => {
-          log.x = (log.x + log.speed * speedFactor + 620) % 620 - 60;
+          log.x = (log.x + log.speed * speedFactor + CANVAS_WIDTH + 120) % (CANVAS_WIDTH + 120) - 60;
           ctx.fillStyle = '#8b5a2b';
           ctx.fillRect(log.x, log.y, log.w, log.h);
 
@@ -126,7 +127,7 @@
           }
         });
 
-        frog.x = Math.max(0, Math.min(CANVAS_SIZE - frog.w, frog.x));
+        frog.x = Math.max(0, Math.min(CANVAS_WIDTH - frog.w, frog.x));
 
         if (frog.y < 230 && frog.y > 70 && !onLog) {
           resetFrog();
@@ -159,7 +160,7 @@
         requestAnimationFrame(gameLoop);
       }
 
-      gameLoop();
+      requestAnimationFrame(gameLoop);
     </script>
   </body>
 </html>
