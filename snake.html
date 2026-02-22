@@ -17,6 +17,7 @@
         border: 2px solid #3f3;
         margin: auto;
         display: block;
+        touch-action: none;
       }
     </style>
   </head>
@@ -37,6 +38,17 @@
       let food = { x: 15, y: 15 };
       let score = 0;
       let isAlive = true;
+      const SWIPE_THRESHOLD = 24;
+
+      let touchStartX = null;
+      let touchStartY = null;
+
+      function setDirection(nextDirection) {
+        const isOpposite =
+          direction.x === -nextDirection.x && direction.y === -nextDirection.y;
+
+        if (!isOpposite) direction = nextDirection;
+      }
 
       function placeFood() {
         food = {
@@ -104,10 +116,53 @@
       }
 
       document.addEventListener('keydown', (event) => {
-        if (event.key === 'ArrowUp' && direction.y !== 1) direction = { x: 0, y: -1 };
-        if (event.key === 'ArrowDown' && direction.y !== -1) direction = { x: 0, y: 1 };
-        if (event.key === 'ArrowLeft' && direction.x !== 1) direction = { x: -1, y: 0 };
-        if (event.key === 'ArrowRight' && direction.x !== -1) direction = { x: 1, y: 0 };
+        if (event.key === 'ArrowUp') setDirection({ x: 0, y: -1 });
+        if (event.key === 'ArrowDown') setDirection({ x: 0, y: 1 });
+        if (event.key === 'ArrowLeft') setDirection({ x: -1, y: 0 });
+        if (event.key === 'ArrowRight') setDirection({ x: 1, y: 0 });
+      });
+
+      canvas.addEventListener(
+        'touchstart',
+        (event) => {
+          const touch = event.changedTouches[0];
+          touchStartX = touch.clientX;
+          touchStartY = touch.clientY;
+        },
+        { passive: true },
+      );
+
+      canvas.addEventListener(
+        'touchend',
+        (event) => {
+          if (touchStartX === null || touchStartY === null) return;
+
+          const touch = event.changedTouches[0];
+          const dx = touch.clientX - touchStartX;
+          const dy = touch.clientY - touchStartY;
+
+          if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) {
+            touchStartX = null;
+            touchStartY = null;
+            return;
+          }
+
+          if (Math.abs(dx) > Math.abs(dy)) {
+            if (dx > 0) setDirection({ x: 1, y: 0 });
+            else setDirection({ x: -1, y: 0 });
+          } else {
+            if (dy > 0) setDirection({ x: 0, y: 1 });
+            else setDirection({ x: 0, y: -1 });
+          }
+
+          touchStartX = null;
+          touchStartY = null;
+        },
+        { passive: true },
+      );
+
+      canvas.addEventListener('touchmove', (event) => {
+        event.preventDefault();
       });
 
       draw();

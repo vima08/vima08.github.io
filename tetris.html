@@ -17,6 +17,7 @@
         margin: auto;
         display: block;
         border: 2px solid #555;
+        touch-action: none;
       }
     </style>
   </head>
@@ -68,6 +69,36 @@
         x: 3,
         y: 0,
       };
+
+
+      const SWIPE_THRESHOLD = 24;
+      let touchStartX = null;
+      let touchStartY = null;
+
+      function moveLeft() {
+        if (!collides(currentPiece.x - 1, currentPiece.y)) {
+          currentPiece.x -= 1;
+        }
+      }
+
+      function moveRight() {
+        if (!collides(currentPiece.x + 1, currentPiece.y)) {
+          currentPiece.x += 1;
+        }
+      }
+
+      function softDrop() {
+        if (!collides(currentPiece.x, currentPiece.y + 1)) {
+          currentPiece.y += 1;
+        }
+      }
+
+      function rotateCurrent() {
+        const rotated = rotate(currentPiece.matrix);
+        if (!collides(currentPiece.x, currentPiece.y, rotated)) {
+          currentPiece.matrix = rotated;
+        }
+      }
 
       function collides(newX = currentPiece.x, newY = currentPiece.y, matrix = currentPiece.matrix) {
         for (let y = 0; y < matrix.length; y += 1) {
@@ -149,26 +180,61 @@
       }
 
       window.addEventListener('keydown', (event) => {
-        if (event.key === 'ArrowLeft' && !collides(currentPiece.x - 1, currentPiece.y)) {
-          currentPiece.x -= 1;
-        }
+        if (event.key === 'ArrowLeft') moveLeft();
 
-        if (event.key === 'ArrowRight' && !collides(currentPiece.x + 1, currentPiece.y)) {
-          currentPiece.x += 1;
-        }
+        if (event.key === 'ArrowRight') moveRight();
 
-        if (event.key === 'ArrowDown' && !collides(currentPiece.x, currentPiece.y + 1)) {
-          currentPiece.y += 1;
-        }
+        if (event.key === 'ArrowDown') softDrop();
 
-        if (event.key === 'ArrowUp') {
-          const rotated = rotate(currentPiece.matrix);
-          if (!collides(currentPiece.x, currentPiece.y, rotated)) {
-            currentPiece.matrix = rotated;
-          }
-        }
+        if (event.key === 'ArrowUp') rotateCurrent();
 
         draw();
+      });
+
+      canvas.addEventListener(
+        'touchstart',
+        (event) => {
+          const touch = event.changedTouches[0];
+          touchStartX = touch.clientX;
+          touchStartY = touch.clientY;
+        },
+        { passive: true },
+      );
+
+      canvas.addEventListener(
+        'touchend',
+        (event) => {
+          if (touchStartX === null || touchStartY === null) return;
+
+          const touch = event.changedTouches[0];
+          const dx = touch.clientX - touchStartX;
+          const dy = touch.clientY - touchStartY;
+
+          if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) {
+            rotateCurrent();
+            draw();
+            touchStartX = null;
+            touchStartY = null;
+            return;
+          }
+
+          if (Math.abs(dx) > Math.abs(dy)) {
+            if (dx > 0) moveRight();
+            else moveLeft();
+          } else {
+            if (dy > 0) softDrop();
+            else rotateCurrent();
+          }
+
+          draw();
+          touchStartX = null;
+          touchStartY = null;
+        },
+        { passive: true },
+      );
+
+      canvas.addEventListener('touchmove', (event) => {
+        event.preventDefault();
       });
 
       draw();
