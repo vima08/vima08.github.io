@@ -90,7 +90,23 @@
           asteroid.y = (asteroid.y + asteroid.vy + canvas.height) % canvas.height;
         });
 
-        asteroids = asteroids.filter((asteroid) => {
+        const asteroidCollisionIndexes = new Set();
+        for (let i = 0; i < asteroids.length; i += 1) {
+          for (let j = i + 1; j < asteroids.length; j += 1) {
+            const a = asteroids[i];
+            const b = asteroids[j];
+            if (Math.hypot(a.x - b.x, a.y - b.y) < a.radius + b.radius) {
+              asteroidCollisionIndexes.add(i);
+              asteroidCollisionIndexes.add(j);
+            }
+          }
+        }
+
+        asteroids = asteroids.filter((asteroid, index) => {
+          if (asteroidCollisionIndexes.has(index)) {
+            return false;
+          }
+
           for (const shot of shots) {
             if (Math.hypot(asteroid.x - shot.x, asteroid.y - shot.y) < asteroid.radius) {
               shot.life = 0;
@@ -137,10 +153,12 @@
         });
 
         // Asteroids
-        ctx.strokeStyle = '#aaa';
         asteroids.forEach((asteroid) => {
+          ctx.fillStyle = '#7b4a1d';
+          ctx.strokeStyle = '#a97a4f';
           ctx.beginPath();
           ctx.arc(asteroid.x, asteroid.y, asteroid.radius, 0, Math.PI * 2);
+          ctx.fill();
           ctx.stroke();
         });
 
