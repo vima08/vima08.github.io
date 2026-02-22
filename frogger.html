@@ -29,6 +29,7 @@
         border: 2px solid #8ec6ff;
         box-shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
         background: #041424;
+        touch-action: none;
       }
 
       p {
@@ -39,7 +40,7 @@
   <body>
     <main>
       <h1>Frogger</h1>
-      <p>Cross the road and river. Arrow keys move one tile.</p>
+      <p>Cross the road and river. Arrow keys or swipe move one tile.</p>
       <p id="hud"></p>
       <canvas id="gameCanvas" width="640" height="520"></canvas>
     </main>
@@ -139,20 +140,79 @@
         syncFrogPosition();
       }
 
-      window.addEventListener('keydown', (event) => {
+      function attemptMove(dx, dy) {
         const now = performance.now();
-        if (now - lastStepTime < STEP_DELAY_MS) return;
+        if (now - lastStepTime < STEP_DELAY_MS) return false;
+        moveFrog(dx, dy);
+        lastStepTime = now;
+        return true;
+      }
 
-        if (event.key === 'ArrowUp') moveFrog(0, -1);
-        if (event.key === 'ArrowDown') moveFrog(0, 1);
-        if (event.key === 'ArrowLeft') moveFrog(-1, 0);
-        if (event.key === 'ArrowRight') moveFrog(1, 0);
-
+      window.addEventListener('keydown', (event) => {
         if (event.key.startsWith('Arrow')) {
           event.preventDefault();
-          lastStepTime = now;
         }
+
+        if (event.key === 'ArrowUp') attemptMove(0, -1);
+        if (event.key === 'ArrowDown') attemptMove(0, 1);
+        if (event.key === 'ArrowLeft') attemptMove(-1, 0);
+        if (event.key === 'ArrowRight') attemptMove(1, 0);
       });
+
+      const MIN_SWIPE_DISTANCE = 22;
+      let touchStartX = null;
+      let touchStartY = null;
+
+      canvas.addEventListener(
+        'touchstart',
+        (event) => {
+          const touch = event.changedTouches[0];
+          touchStartX = touch.clientX;
+          touchStartY = touch.clientY;
+          event.preventDefault();
+        },
+        { passive: false },
+      );
+
+      canvas.addEventListener(
+        'touchend',
+        (event) => {
+          if (touchStartX === null || touchStartY === null) return;
+
+          const touch = event.changedTouches[0];
+          const dx = touch.clientX - touchStartX;
+          const dy = touch.clientY - touchStartY;
+          const absDx = Math.abs(dx);
+          const absDy = Math.abs(dy);
+
+          if (Math.max(absDx, absDy) < MIN_SWIPE_DISTANCE) {
+            touchStartX = null;
+            touchStartY = null;
+            event.preventDefault();
+            return;
+          }
+
+          if (absDx > absDy) {
+            attemptMove(dx > 0 ? 1 : -1, 0);
+          } else {
+            attemptMove(0, dy > 0 ? 1 : -1);
+          }
+
+          touchStartX = null;
+          touchStartY = null;
+          event.preventDefault();
+        },
+        { passive: false },
+      );
+
+      canvas.addEventListener(
+        'touchcancel',
+        () => {
+          touchStartX = null;
+          touchStartY = null;
+        },
+        { passive: true },
+      );
 
       function update(dt) {
         lanes.forEach((lane) => {
