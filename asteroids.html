@@ -37,12 +37,47 @@
       let score = 0;
 
       function createAsteroid() {
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const edgeInset = 2;
+        const minSpawnDistanceFromShip = 90;
+
+        const randomEdgePosition = () => {
+          const edge = Math.floor(Math.random() * 4);
+          if (edge === 0) return { x: Math.random() * canvas.width, y: edgeInset }; // top
+          if (edge === 1) return { x: canvas.width - edgeInset, y: Math.random() * canvas.height }; // right
+          if (edge === 2) return { x: Math.random() * canvas.width, y: canvas.height - edgeInset }; // bottom
+          return { x: edgeInset, y: Math.random() * canvas.height }; // left
+        };
+
+        let asteroid;
+        for (let attempt = 0; attempt < 40; attempt += 1) {
+          const radius = 20 + Math.random() * 20;
+          const { x, y } = randomEdgePosition();
+          const angleToCenter = Math.atan2(centerY - y, centerX - x);
+          const speed = 0.6 + Math.random() * 1.1;
+          const angleOffset = (Math.random() - 0.5) * 0.45;
+
+          asteroid = {
+            x,
+            y,
+            vx: Math.cos(angleToCenter + angleOffset) * speed,
+            vy: Math.sin(angleToCenter + angleOffset) * speed,
+            radius,
+          };
+
+          if (Math.hypot(asteroid.x - ship.x, asteroid.y - ship.y) > asteroid.radius + minSpawnDistanceFromShip) {
+            return asteroid;
+          }
+        }
+
+        // Fallback if we somehow cannot find a safe spawn quickly.
         return {
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          vx: (Math.random() - 0.5) * 2,
-          vy: (Math.random() - 0.5) * 2,
-          radius: 20 + Math.random() * 20,
+          ...asteroid,
+          x: centerX,
+          y: edgeInset,
+          vx: 0.5,
+          vy: 0.8,
         };
       }
 
