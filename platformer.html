@@ -80,7 +80,7 @@
       };
 
       const platforms = [
-        { x: 0, y: 394, w: WORLD_WIDTH, h: 46 },
+        { x: 0, y: 394, w: 300, h: 46 },
         { x: 220, y: 332, w: 150, h: 20 },
         { x: 470, y: 278, w: 160, h: 20 },
         { x: 690, y: 228, w: 170, h: 20 },
@@ -89,7 +89,11 @@
         { x: 1460, y: 214, w: 180, h: 20 },
         { x: 1740, y: 270, w: 200, h: 20 },
         { x: 2060, y: 330, w: 180, h: 20 },
+        { x: WORLD_WIDTH - 260, y: 394, w: 260, h: 46 },
       ];
+
+      const finishPlatform = platforms[platforms.length - 1];
+      let levelComplete = false;
 
       const enemies = [
         { x: 280, y: 0, w: 24, h: 24, speed: 95, dir: 1, platform: 1, leftPad: 8, rightPad: 8 },
@@ -110,6 +114,7 @@
       let cameraX = 0;
 
       function resetPlayer() {
+        if (levelComplete) return;
         player.x = 80;
         player.y = 220;
         player.vx = 0;
@@ -152,6 +157,8 @@
       }
 
       function update(dt) {
+        if (levelComplete) return;
+
         player.vx = 0;
         if (keys.left) player.vx -= MOVE_SPEED;
         if (keys.right) player.vx += MOVE_SPEED;
@@ -176,6 +183,12 @@
             player.y = platform.y - player.h;
             player.vy = 0;
             player.onGround = true;
+            if (platform === finishPlatform) {
+              levelComplete = true;
+              keys.left = false;
+              keys.right = false;
+              keys.jump = false;
+            }
           } else if (prevTop >= platform.y + platform.h) {
             player.y = platform.y + platform.h;
             player.vy = 0;
@@ -239,7 +252,20 @@
 
         ctx.fillStyle = '#d9e6ff';
         ctx.font = '16px Arial';
-        ctx.fillText('Run to the right. If you fall, you respawn.', 16, 26);
+        ctx.fillText('Run to the right. Reach the final platform to win.', 16, 26);
+
+        if (levelComplete) {
+          ctx.fillStyle = 'rgba(7, 14, 24, 0.6)';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = '#d8f7a1';
+          ctx.font = 'bold 42px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText('Level Complete!', canvas.width / 2, canvas.height / 2);
+          ctx.font = '20px Arial';
+          ctx.fillStyle = '#eef7ff';
+          ctx.fillText('You reached the final platform.', canvas.width / 2, canvas.height / 2 + 36);
+          ctx.textAlign = 'left';
+        }
       }
 
       let previousTime = performance.now();
