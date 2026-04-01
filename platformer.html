@@ -49,6 +49,7 @@
       <h1>White Cube Platformer</h1>
       <p>Move: ← → or A / D. Jump: Space.</p>
       <p>Hold Space for full jump, release early for a shorter jump.</p>
+      <p>Avoid red patrol cubes or you respawn at the start.</p>
       <p><a href="/index.html">← Back to Index</a></p>
       <canvas id="gameCanvas" width="900" height="440"></canvas>
     </main>
@@ -89,6 +90,22 @@
         { x: 1740, y: 270, w: 200, h: 20 },
         { x: 2060, y: 330, w: 180, h: 20 },
       ];
+
+      const enemies = [
+        { x: 280, y: 0, w: 24, h: 24, speed: 95, dir: 1, platform: 1, leftPad: 8, rightPad: 8 },
+        { x: 520, y: 0, w: 24, h: 24, speed: 115, dir: -1, platform: 2, leftPad: 10, rightPad: 10 },
+        { x: 760, y: 0, w: 24, h: 24, speed: 100, dir: 1, platform: 3, leftPad: 8, rightPad: 8 },
+        { x: 1520, y: 0, w: 24, h: 24, speed: 120, dir: -1, platform: 6, leftPad: 10, rightPad: 10 },
+        { x: 2115, y: 0, w: 24, h: 24, speed: 105, dir: 1, platform: 8, leftPad: 8, rightPad: 8 },
+      ];
+
+      enemies.forEach((enemy) => {
+        const patrolPlatform = platforms[enemy.platform];
+        enemy.minX = patrolPlatform.x + enemy.leftPad;
+        enemy.maxX = patrolPlatform.x + patrolPlatform.w - enemy.w - enemy.rightPad;
+        enemy.x = Math.max(enemy.minX, Math.min(enemy.maxX, enemy.x));
+        enemy.y = patrolPlatform.y - enemy.h;
+      });
 
       let cameraX = 0;
 
@@ -173,6 +190,23 @@
           resetPlayer();
         }
 
+        for (const enemy of enemies) {
+          enemy.x += enemy.speed * enemy.dir * dt;
+
+          if (enemy.x <= enemy.minX) {
+            enemy.x = enemy.minX;
+            enemy.dir = 1;
+          } else if (enemy.x >= enemy.maxX) {
+            enemy.x = enemy.maxX;
+            enemy.dir = -1;
+          }
+
+          if (intersects(player, enemy)) {
+            resetPlayer();
+            break;
+          }
+        }
+
         const targetCamera = player.x - canvas.width * 0.35;
         cameraX = Math.max(0, Math.min(WORLD_WIDTH - canvas.width, targetCamera));
       }
@@ -195,6 +229,11 @@
 
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(player.x, player.y, player.w, player.h);
+
+        ctx.fillStyle = '#e63946';
+        enemies.forEach((enemy) => {
+          ctx.fillRect(enemy.x, enemy.y, enemy.w, enemy.h);
+        });
 
         ctx.restore();
 
