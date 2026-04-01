@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>White Cube Platformer</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(180deg, #1e2f4d 0%, #0a1020 100%);
+        font-family: Arial, Helvetica, sans-serif;
+        color: #eef3ff;
+      }
+
+      main {
+        text-align: center;
+      }
+
+      h1 {
+        margin-bottom: 8px;
+      }
+
+      p {
+        margin: 6px 0;
+      }
+
+      a {
+        color: #9fd4ff;
+      }
+
+      canvas {
+        display: block;
+        margin-top: 12px;
+        border: 2px solid #9ec4ff;
+        background: linear-gradient(180deg, #2f4d73 0%, #12253d 65%, #0f1a2f 100%);
+        box-shadow: 0 12px 35px rgba(0, 0, 0, 0.45);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>White Cube Platformer</h1>
+      <p>Move: ← → or A / D. Jump: Space.</p>
+      <p>Hold Space for full jump, release early for a shorter jump.</p>
+      <p><a href="/index.html">← Back to Index</a></p>
+      <canvas id="gameCanvas" width="900" height="440"></canvas>
+    </main>
+
+    <script>
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+
+      const WORLD_WIDTH = 2600;
+      const GRAVITY = 1800;
+      const MOVE_SPEED = 320;
+      const JUMP_SPEED = 770;
+
+      const keys = {
+        left: false,
+        right: false,
+        jump: false,
+      };
+
+      const player = {
+        x: 80,
+        y: 220,
+        w: 28,
+        h: 28,
+        vx: 0,
+        vy: 0,
+        onGround: false,
+      };
+
+      const platforms = [
+        { x: 0, y: 394, w: WORLD_WIDTH, h: 46 },
+        { x: 220, y: 332, w: 150, h: 20 },
+        { x: 470, y: 278, w: 160, h: 20 },
+        { x: 690, y: 228, w: 170, h: 20 },
+        { x: 980, y: 300, w: 180, h: 20 },
+        { x: 1240, y: 256, w: 140, h: 20 },
+        { x: 1460, y: 214, w: 180, h: 20 },
+        { x: 1740, y: 270, w: 200, h: 20 },
+        { x: 2060, y: 330, w: 180, h: 20 },
+      ];
+
+      let cameraX = 0;
+
+      function resetPlayer() {
+        player.x = 80;
+        player.y = 220;
+        player.vx = 0;
+        player.vy = 0;
+      }
+
+      function keyState(key, isDown) {
+        if (key === 'ArrowLeft' || key.toLowerCase() === 'a') keys.left = isDown;
+        if (key === 'ArrowRight' || key.toLowerCase() === 'd') keys.right = isDown;
+
+        if (key === ' ') {
+          if (isDown) {
+            if (!keys.jump && player.onGround) {
+              player.vy = -JUMP_SPEED;
+              player.onGround = false;
+            }
+            keys.jump = true;
+          } else {
+            if (keys.jump && player.vy < 0) {
+              player.vy *= 0.5;
+            }
+            keys.jump = false;
+          }
+        }
+      }
+
+      window.addEventListener('keydown', (event) => {
+        if (['ArrowLeft', 'ArrowRight', ' '].includes(event.key) || event.key.toLowerCase() === 'a' || event.key.toLowerCase() === 'd') {
+          event.preventDefault();
+        }
+        keyState(event.key, true);
+      });
+
+      window.addEventListener('keyup', (event) => {
+        keyState(event.key, false);
+      });
+
+      function intersects(a, b) {
+        return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+      }
+
+      function update(dt) {
+        player.vx = 0;
+        if (keys.left) player.vx -= MOVE_SPEED;
+        if (keys.right) player.vx += MOVE_SPEED;
+
+        player.x += player.vx * dt;
+        player.x = Math.max(0, Math.min(WORLD_WIDTH - player.w, player.x));
+
+        player.vy += GRAVITY * dt;
+        player.y += player.vy * dt;
+
+        player.onGround = false;
+
+        for (const platform of platforms) {
+          if (!intersects(player, platform)) continue;
+
+          const prevBottom = player.y - player.vy * dt + player.h;
+          const prevTop = player.y - player.vy * dt;
+          const prevRight = player.x - player.vx * dt + player.w;
+          const prevLeft = player.x - player.vx * dt;
+
+          if (prevBottom <= platform.y) {
+            player.y = platform.y - player.h;
+            player.vy = 0;
+            player.onGround = true;
+          } else if (prevTop >= platform.y + platform.h) {
+            player.y = platform.y + platform.h;
+            player.vy = 0;
+          } else if (prevRight <= platform.x) {
+            player.x = platform.x - player.w;
+          } else if (prevLeft >= platform.x + platform.w) {
+            player.x = platform.x + platform.w;
+          }
+        }
+
+        if (player.y > canvas.height + 150) {
+          resetPlayer();
+        }
+
+        const targetCamera = player.x - canvas.width * 0.35;
+        cameraX = Math.max(0, Math.min(WORLD_WIDTH - canvas.width, targetCamera));
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.save();
+        ctx.translate(-cameraX, 0);
+
+        ctx.fillStyle = '#4f6c93';
+        for (let i = 0; i < WORLD_WIDTH; i += 80) {
+          ctx.fillRect(i, 0, 2, canvas.height);
+        }
+
+        ctx.fillStyle = '#7089ad';
+        platforms.forEach((platform) => {
+          ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
+        });
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(player.x, player.y, player.w, player.h);
+
+        ctx.restore();
+
+        ctx.fillStyle = '#d9e6ff';
+        ctx.font = '16px Arial';
+        ctx.fillText('Run to the right. If you fall, you respawn.', 16, 26);
+      }
+
+      let previousTime = performance.now();
+
+      function gameLoop(time) {
+        const dt = Math.min((time - previousTime) / 1000, 1 / 30);
+        previousTime = time;
+
+        update(dt);
+        draw();
+
+        requestAnimationFrame(gameLoop);
+      }
+
+      requestAnimationFrame(gameLoop);
+    </script>
+  </body>
+</html>
