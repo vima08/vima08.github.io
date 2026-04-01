@@ -31,7 +31,8 @@
 </head>
 <body>
     <h1>Arkanoid</h1>
-    <p>Move: ← → | Restart: R</p>
+    <p>Move: ← → or Tilt tablet | Restart: R</p>
+    <p id="tiltInfo">Tilt: unavailable</p>
     <p id="status">Score: 0 | Lives: 3</p>
     <canvas id="gameCanvas" width="800" height="500"></canvas>
 
@@ -39,6 +40,7 @@
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
         const statusLabel = document.getElementById("status");
+        const tiltInfoLabel = document.getElementById("tiltInfo");
 
         const paddle = {
             width: 120,
@@ -73,6 +75,9 @@
         let lives = 3;
         let gameOver = false;
         let gameWon = false;
+        let tiltEnabled = false;
+        let tiltGamma = 0;
+        const maxTiltAngle = 30;
 
         function createBricks() {
             bricks = [];
@@ -113,6 +118,20 @@
             statusLabel.textContent = `Score: ${score} | Lives: ${lives}`;
         }
 
+        function updateTiltStatusLabel() {
+            if (!("DeviceOrientationEvent" in window)) {
+                tiltInfoLabel.textContent = "Tilt: not supported by this browser";
+                return;
+            }
+
+            if (tiltEnabled) {
+                tiltInfoLabel.textContent = "Tilt: enabled";
+                return;
+            }
+
+            tiltInfoLabel.textContent = "Tilt: tap/click screen once to enable";
+        }
+
         function drawPaddle() {
             ctx.fillStyle = "#00e5ff";
             ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
@@ -145,6 +164,11 @@
         }
 
         function handleInput() {
+            if (tiltEnabled) {
+                const normalizedTilt = Math.max(-1, Math.min(1, tiltGamma / maxTiltAngle));
+                paddle.x += normalizedTilt * paddle.speed;
+            }
+
             if (paddle.movingLeft) {
                 paddle.x -= paddle.speed;
             }
@@ -242,7 +266,41 @@
             if (event.key === "ArrowRight") paddle.movingRight = false;
         });
 
+        function onDeviceOrientation(event) {
+            if (typeof event.gamma !== "number") return;
+            tiltGamma = event.gamma;
+        }
+
+        function enableTiltControls() {
+            if (tiltEnabled || !("DeviceOrientationEvent" in window)) return;
+
+            const requestPermission = DeviceOrientationEvent.requestPermission;
+            if (typeof requestPermission === "function") {
+                requestPermission.call(DeviceOrientationEvent)
+                    .then((permissionState) => {
+                        if (permissionState === "granted") {
+                            window.addEventListener("deviceorientation", onDeviceOrientation);
+                            tiltEnabled = true;
+                            updateTiltStatusLabel();
+                        } else {
+                            tiltInfoLabel.textContent = "Tilt: permission denied";
+                        }
+                    })
+                    .catch(() => {
+                        tiltInfoLabel.textContent = "Tilt: permission error";
+                    });
+            } else {
+                window.addEventListener("deviceorientation", onDeviceOrientation);
+                tiltEnabled = true;
+                updateTiltStatusLabel();
+            }
+        }
+
+        document.addEventListener("click", enableTiltControls, { once: true });
+        document.addEventListener("touchstart", enableTiltControls, { once: true });
+
         createBricks();
+        updateTiltStatusLabel();
         gameLoop();
     </script>
 </body>
