@@ -35,6 +35,30 @@
       let shots = [];
       let asteroids = Array.from({ length: 6 }, createAsteroid);
       let score = 0;
+      const explosionColors = ['#ffd400', '#ff3b2f', '#ff8c1a'];
+
+      function createSmallAsteroids(parentA, parentB) {
+        const midpointX = (parentA.x + parentB.x) / 2;
+        const midpointY = (parentA.y + parentB.y) / 2;
+        const totalRadius = parentA.radius + parentB.radius;
+        const childRadius = Math.max(8, totalRadius / 5);
+        const baseSpeed = Math.max(1.1, (Math.hypot(parentA.vx, parentA.vy) + Math.hypot(parentB.vx, parentB.vy)) / 2);
+
+        return Array.from({ length: 4 }, (_, index) => {
+          const angle = (Math.PI / 2) * index + Math.random() * 0.35;
+          const spread = 6 + Math.random() * 10;
+          const speed = baseSpeed + Math.random() * 1.5;
+          return {
+            x: (midpointX + Math.cos(angle) * spread + canvas.width) % canvas.width,
+            y: (midpointY + Math.sin(angle) * spread + canvas.height) % canvas.height,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            radius: childRadius * (0.8 + Math.random() * 0.4),
+            state: 'normal',
+            collapseTimer: 0,
+          };
+        });
+      }
 
       function createAsteroid() {
         const centerX = canvas.width / 2;
@@ -64,6 +88,8 @@
             vx: Math.cos(angleToCenter + angleOffset) * speed,
             vy: Math.sin(angleToCenter + angleOffset) * speed,
             radius,
+            state: 'normal',
+            collapseTimer: 0,
           };
 
           if (Math.hypot(asteroid.x - ship.x, asteroid.y - ship.y) > asteroid.radius + minSpawnDistanceFromShip) {
@@ -78,6 +104,8 @@
           y: edgeInset,
           vx: 0.5,
           vy: 0.8,
+          state: 'normal',
+          collapseTimer: 0,
         };
       }
 
@@ -126,13 +154,16 @@
         });
 
         const asteroidCollisionIndexes = new Set();
+        const asteroidFragments = [];
         for (let i = 0; i < asteroids.length; i += 1) {
           for (let j = i + 1; j < asteroids.length; j += 1) {
             const a = asteroids[i];
             const b = asteroids[j];
+            if (a.state !== 'normal' || b.state !== 'normal') continue;
             if (Math.hypot(a.x - b.x, a.y - b.y) < a.radius + b.radius) {
               asteroidCollisionIndexes.add(i);
               asteroidCollisionIndexes.add(j);
+              asteroidFragments.push(...createSmallAsteroids(a, b));
             }
           }
         }
@@ -143,9 +174,21 @@
           }
 
           for (const shot of shots) {
-            if (Math.hypot(asteroid.x - shot.x, asteroid.y - shot.y) < asteroid.radius) {
+            if (asteroid.state === 'normal' && Math.hypot(asteroid.x - shot.x, asteroid.y - shot.y) < asteroid.radius) {
               shot.life = 0;
               score += 10;
+              asteroid.state = 'collapsing';
+              asteroid.collapseTimer = 18;
+              asteroid.vx *= 0.85;
+              asteroid.vy *= 0.85;
+              break;
+            }
+          }
+
+          if (asteroid.state === 'collapsing') {
+            asteroid.collapseTimer -= 1;
+            asteroid.radius *= 0.88;
+            if (asteroid.collapseTimer <= 0 || asteroid.radius < 2) {
               return false;
             }
           }
@@ -157,6 +200,11 @@
 
           return true;
         });
+
+        asteroids.push(...asteroidFragments);
+        if (asteroids.length > 24) {
+          asteroids = asteroids.slice(asteroids.length - 24);
+        }
 
         while (asteroids.length < 6) {
           asteroids.push(createAsteroid());
@@ -189,8 +237,14 @@
 
         // Asteroids
         asteroids.forEach((asteroid) => {
-          ctx.fillStyle = '#7b4a1d';
-          ctx.strokeStyle = '#a97a4f';
+          if (asteroid.state === 'collapsing') {
+            const colorIndex = asteroid.collapseTimer % explosionColors.length;
+            ctx.fillStyle = explosionColors[colorIndex];
+            ctx.strokeStyle = '#fff2ae';
+          } else {
+            ctx.fillStyle = '#7b4a1d';
+            ctx.strokeStyle = '#a97a4f';
+          }
           ctx.beginPath();
           ctx.arc(asteroid.x, asteroid.y, asteroid.radius, 0, Math.PI * 2);
           ctx.fill();
