@@ -24,17 +24,21 @@
   <body>
     <h1>Tetris</h1>
     <p>← → move, ↑ rotate, ↓ soft drop</p>
+    <p>Score: <span id="scoreValue">0</span></p>
+    <p>On mobile/tablet: shake device to hard drop</p>
     <canvas id="gameCanvas" width="300" height="600"></canvas>
 
     <script>
       const canvas = document.getElementById('gameCanvas');
       const ctx = canvas.getContext('2d');
+      const scoreValueEl = document.getElementById('scoreValue');
 
       const CELL_SIZE = 30;
       const BOARD_WIDTH = 10;
       const BOARD_HEIGHT = 20;
 
       let board = Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill(0));
+      let score = 0;
 
       const PIECES = [
         [
@@ -93,6 +97,14 @@
         }
       }
 
+      function hardDrop() {
+        while (!collides(currentPiece.x, currentPiece.y + 1)) {
+          currentPiece.y += 1;
+        }
+        mergePiece();
+        draw();
+      }
+
       function rotateCurrent() {
         const rotated = rotate(currentPiece.matrix);
         if (!collides(currentPiece.x, currentPiece.y, rotated)) {
@@ -120,12 +132,18 @@
           });
         });
 
+        let clearedLines = 0;
         for (let y = BOARD_HEIGHT - 1; y >= 0; y -= 1) {
           if (board[y].every(Boolean)) {
             board.splice(y, 1);
             board.unshift(Array(BOARD_WIDTH).fill(0));
+            clearedLines += 1;
             y += 1;
           }
+        }
+        if (clearedLines > 0) {
+          score += clearedLines * 100;
+          scoreValueEl.textContent = String(score);
         }
 
         currentPiece = {
@@ -136,6 +154,8 @@
 
         if (collides()) {
           board = Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill(0));
+          score = 0;
+          scoreValueEl.textContent = '0';
         }
       }
 
@@ -237,7 +257,54 @@
         event.preventDefault();
       });
 
+      const SHAKE_THRESHOLD = 22;
+      const SHAKE_COOLDOWN_MS = 900;
+      let lastShakeTs = 0;
+
+      function onDeviceMotion(event) {
+        const acceleration = event.accelerationIncludingGravity;
+        if (!acceleration) return;
+
+        const x = acceleration.x ?? 0;
+        const y = acceleration.y ?? 0;
+        const z = acceleration.z ?? 0;
+        const totalAcceleration = Math.sqrt(x * x + y * y + z * z);
+
+        if (totalAcceleration < SHAKE_THRESHOLD) return;
+
+        const now = Date.now();
+        if (now - lastShakeTs < SHAKE_COOLDOWN_MS) return;
+
+        lastShakeTs = now;
+        hardDrop();
+      }
+
+      function enableMotionControl() {
+        if (!('DeviceMotionEvent' in window)) return;
+
+        if (typeof DeviceMotionEvent.requestPermission === 'function') {
+          const activate = () => {
+            DeviceMotionEvent.requestPermission()
+              .then((permissionState) => {
+                if (permissionState === 'granted') {
+                  window.addEventListener('devicemotion', onDeviceMotion);
+                }
+              })
+              .catch(() => {});
+            window.removeEventListener('touchstart', activate);
+            window.removeEventListener('click', activate);
+          };
+
+          window.addEventListener('touchstart', activate, { once: true, passive: true });
+          window.addEventListener('click', activate, { once: true });
+          return;
+        }
+
+        window.addEventListener('devicemotion', onDeviceMotion);
+      }
+
       draw();
+      enableMotionControl();
       setInterval(tick, 400);
     </script>
   </body>
