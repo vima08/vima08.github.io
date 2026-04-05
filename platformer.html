@@ -48,6 +48,7 @@
     <main>
       <h1>White Cube Platformer</h1>
       <p>Move: ← → or A / D. Jump: Space.</p>
+      <p>Shoot: Ctrl (fires in the last movement direction).</p>
       <p>Hold Space for full jump, release early for a shorter jump.</p>
       <p>Avoid red patrol cubes or you respawn at the start.</p>
       <p><a href="/index.html">← Back to Index</a></p>
@@ -62,6 +63,8 @@
       const GRAVITY = 1800;
       const MOVE_SPEED = 320;
       const JUMP_SPEED = 770;
+      const BULLET_SPEED = 680;
+      const SHOOT_COOLDOWN = 0.16;
 
       const keys = {
         left: false,
@@ -77,7 +80,11 @@
         vx: 0,
         vy: 0,
         onGround: false,
+        facing: 1,
       };
+
+      const bullets = [];
+      let shootCooldownLeft = 0;
 
       const platforms = [
         { x: 0, y: 394, w: 300, h: 46 },
@@ -119,11 +126,18 @@
         player.y = 220;
         player.vx = 0;
         player.vy = 0;
+        bullets.length = 0;
       }
 
       function keyState(key, isDown) {
-        if (key === 'ArrowLeft' || key.toLowerCase() === 'a') keys.left = isDown;
-        if (key === 'ArrowRight' || key.toLowerCase() === 'd') keys.right = isDown;
+        if (key === 'ArrowLeft' || key.toLowerCase() === 'a') {
+          keys.left = isDown;
+          if (isDown) player.facing = -1;
+        }
+        if (key === 'ArrowRight' || key.toLowerCase() === 'd') {
+          keys.right = isDown;
+          if (isDown) player.facing = 1;
+        }
 
         if (key === ' ') {
           if (isDown) {
@@ -142,9 +156,19 @@
       }
 
       window.addEventListener('keydown', (event) => {
-        if (['ArrowLeft', 'ArrowRight', ' '].includes(event.key) || event.key.toLowerCase() === 'a' || event.key.toLowerCase() === 'd') {
+        if (
+          ['ArrowLeft', 'ArrowRight', ' ', 'Control'].includes(event.key) ||
+          event.key.toLowerCase() === 'a' ||
+          event.key.toLowerCase() === 'd' ||
+          event.key.toLowerCase() === 'control'
+        ) {
           event.preventDefault();
         }
+
+        if ((event.key === 'Control' || event.key.toLowerCase() === 'control') && !event.repeat) {
+          tryShoot();
+        }
+
         keyState(event.key, true);
       });
 
@@ -156,8 +180,29 @@
         return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
       }
 
+      function tryShoot() {
+        if (levelComplete || shootCooldownLeft > 0) return;
+
+        const bulletW = 10;
+        const bulletH = 4;
+        const bulletX = player.facing > 0 ? player.x + player.w : player.x - bulletW;
+        const bulletY = player.y + player.h / 2 - bulletH / 2;
+
+        bullets.push({
+          x: bulletX,
+          y: bulletY,
+          w: bulletW,
+          h: bulletH,
+          vx: BULLET_SPEED * player.facing,
+        });
+
+        shootCooldownLeft = SHOOT_COOLDOWN;
+      }
+
       function update(dt) {
         if (levelComplete) return;
+
+        shootCooldownLeft = Math.max(0, shootCooldownLeft - dt);
 
         player.vx = 0;
         if (keys.left) player.vx -= MOVE_SPEED;
@@ -203,7 +248,18 @@
           resetPlayer();
         }
 
-        for (const enemy of enemies) {
+        for (let bulletIndex = bullets.length - 1; bulletIndex >= 0; bulletIndex -= 1) {
+          const bullet = bullets[bulletIndex];
+          bullet.x += bullet.vx * dt;
+
+          if (bullet.x + bullet.w < 0 || bullet.x > WORLD_WIDTH) {
+            bullets.splice(bulletIndex, 1);
+            continue;
+          }
+        }
+
+        for (let enemyIndex = enemies.length - 1; enemyIndex >= 0; enemyIndex -= 1) {
+          const enemy = enemies[enemyIndex];
           enemy.x += enemy.speed * enemy.dir * dt;
 
           if (enemy.x <= enemy.minX) {
@@ -217,6 +273,20 @@
           if (intersects(player, enemy)) {
             resetPlayer();
             break;
+          }
+
+          let enemyKilled = false;
+          for (let bulletIndex = bullets.length - 1; bulletIndex >= 0; bulletIndex -= 1) {
+            if (intersects(bullets[bulletIndex], enemy)) {
+              bullets.splice(bulletIndex, 1);
+              enemies.splice(enemyIndex, 1);
+              enemyKilled = true;
+              break;
+            }
+          }
+
+          if (enemyKilled) {
+            continue;
           }
         }
 
@@ -242,6 +312,11 @@
 
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(player.x, player.y, player.w, player.h);
+
+        ctx.fillStyle = '#ffe66d';
+        bullets.forEach((bullet) => {
+          ctx.fillRect(bullet.x, bullet.y, bullet.w, bullet.h);
+        });
 
         ctx.fillStyle = '#e63946';
         enemies.forEach((enemy) => {
