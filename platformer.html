@@ -21,14 +21,11 @@
 
       main {
         text-align: center;
+        width: min(940px, 100vw - 16px);
       }
 
       h1 {
         margin-bottom: 8px;
-      }
-
-      p {
-        margin: 6px 0;
       }
 
       a {
@@ -42,29 +39,132 @@
         background: linear-gradient(180deg, #2f4d73 0%, #12253d 65%, #0f1a2f 100%);
         box-shadow: 0 12px 35px rgba(0, 0, 0, 0.45);
       }
+
+      .controls-panel {
+        margin-top: 10px;
+        text-align: left;
+        background: rgba(10, 17, 30, 0.55);
+        border: 1px solid rgba(158, 196, 255, 0.35);
+        border-radius: 8px;
+        padding: 8px 10px;
+      }
+
+      .controls-panel summary {
+        cursor: pointer;
+        font-weight: 700;
+        color: #d7e8ff;
+      }
+
+      .controls-panel p {
+        margin: 8px 0 4px;
+      }
     </style>
   </head>
   <body>
     <main>
       <h1>White Cube Platformer</h1>
-      <p>Move: ← → or A / D. Jump: Space.</p>
-      <p>Shoot: Ctrl (fires in the last movement direction).</p>
-      <p>Hold Space for full jump, release early for a shorter jump.</p>
-      <p>Avoid red patrol cubes or you respawn at the start.</p>
       <p><a href="/index.html">← Back to Index</a></p>
       <canvas id="gameCanvas" width="900" height="440"></canvas>
+      <details class="controls-panel">
+        <summary>Controls & tips</summary>
+        <p>Move: ← → or A / D. Jump: Space.</p>
+        <p>Shoot: Ctrl (fires in the last movement direction).</p>
+        <p>Hold Space for full jump, release early for a shorter jump.</p>
+        <p>Avoid red patrol cubes or you respawn at the start.</p>
+      </details>
     </main>
 
     <script>
       const canvas = document.getElementById('gameCanvas');
       const ctx = canvas.getContext('2d');
 
-      const WORLD_WIDTH = 2600;
       const GRAVITY = 1800;
       const MOVE_SPEED = 320;
       const JUMP_SPEED = 770;
       const BULLET_SPEED = 680;
       const SHOOT_COOLDOWN = 0.16;
+      const MAX_AMMO = 3;
+
+      const LEVELS = [
+        {
+          worldWidth: 2600,
+          start: { x: 80, y: 220 },
+          platforms: [
+            { x: 0, y: 394, w: 300, h: 46 },
+            { x: 220, y: 332, w: 150, h: 20 },
+            { x: 470, y: 278, w: 160, h: 20 },
+            { x: 690, y: 228, w: 170, h: 20 },
+            { x: 980, y: 300, w: 180, h: 20 },
+            { x: 1240, y: 256, w: 140, h: 20 },
+            { x: 1460, y: 214, w: 180, h: 20 },
+            { x: 1740, y: 270, w: 200, h: 20 },
+            { x: 2060, y: 330, w: 180, h: 20 },
+            { x: 2340, y: 394, w: 260, h: 46 },
+          ],
+          enemies: [
+            { x: 280, speed: 95, dir: 1, platform: 1, leftPad: 8, rightPad: 8 },
+            { x: 520, speed: 115, dir: -1, platform: 2, leftPad: 10, rightPad: 10 },
+            { x: 760, speed: 100, dir: 1, platform: 3, leftPad: 8, rightPad: 8 },
+            { x: 1520, speed: 120, dir: -1, platform: 6, leftPad: 10, rightPad: 10 },
+            { x: 2115, speed: 105, dir: 1, platform: 8, leftPad: 8, rightPad: 8 },
+          ],
+        },
+        {
+          worldWidth: 2550,
+          start: { x: 80, y: 200 },
+          platforms: [
+            { x: 0, y: 394, w: 260, h: 46 },
+            { x: 230, y: 344, w: 120, h: 20 },
+            { x: 390, y: 292, w: 140, h: 20 },
+            { x: 590, y: 250, w: 120, h: 20 },
+            { x: 760, y: 210, w: 120, h: 20 },
+            { x: 940, y: 252, w: 140, h: 20 },
+            { x: 1140, y: 300, w: 150, h: 20 },
+            { x: 1360, y: 260, w: 160, h: 20 },
+            { x: 1600, y: 222, w: 150, h: 20 },
+            { x: 1820, y: 282, w: 180, h: 20 },
+            { x: 2100, y: 340, w: 180, h: 20 },
+            { x: 2290, y: 394, w: 260, h: 46 },
+          ],
+          enemies: [
+            { x: 260, speed: 100, dir: 1, platform: 1, leftPad: 6, rightPad: 6 },
+            { x: 420, speed: 130, dir: -1, platform: 2, leftPad: 8, rightPad: 8 },
+            { x: 810, speed: 112, dir: 1, platform: 4, leftPad: 8, rightPad: 8 },
+            { x: 1420, speed: 125, dir: -1, platform: 7, leftPad: 8, rightPad: 8 },
+            { x: 1890, speed: 120, dir: 1, platform: 9, leftPad: 8, rightPad: 8 },
+            { x: 2140, speed: 108, dir: -1, platform: 10, leftPad: 8, rightPad: 8 },
+          ],
+        },
+        {
+          worldWidth: 2700,
+          start: { x: 80, y: 210 },
+          platforms: [
+            { x: 0, y: 394, w: 300, h: 46 },
+            { x: 250, y: 320, w: 120, h: 20 },
+            { x: 420, y: 260, w: 110, h: 20 },
+            { x: 590, y: 210, w: 110, h: 20 },
+            { x: 760, y: 260, w: 110, h: 20 },
+            { x: 930, y: 320, w: 130, h: 20 },
+            { x: 1150, y: 270, w: 130, h: 20 },
+            { x: 1340, y: 220, w: 110, h: 20 },
+            { x: 1510, y: 180, w: 110, h: 20 },
+            { x: 1690, y: 235, w: 130, h: 20 },
+            { x: 1880, y: 290, w: 150, h: 20 },
+            { x: 2100, y: 340, w: 160, h: 20 },
+            { x: 2360, y: 298, w: 160, h: 20 },
+            { x: 2510, y: 394, w: 190, h: 46 },
+          ],
+          enemies: [
+            { x: 280, speed: 108, dir: 1, platform: 1, leftPad: 8, rightPad: 8 },
+            { x: 445, speed: 124, dir: -1, platform: 2, leftPad: 8, rightPad: 8 },
+            { x: 610, speed: 126, dir: 1, platform: 3, leftPad: 8, rightPad: 8 },
+            { x: 960, speed: 135, dir: -1, platform: 5, leftPad: 8, rightPad: 8 },
+            { x: 1370, speed: 120, dir: 1, platform: 7, leftPad: 8, rightPad: 8 },
+            { x: 1910, speed: 110, dir: -1, platform: 10, leftPad: 8, rightPad: 8 },
+            { x: 2400, speed: 132, dir: 1, platform: 12, leftPad: 8, rightPad: 8 },
+          ],
+        },
+      ];
 
       const keys = {
         left: false,
@@ -84,49 +184,79 @@
       };
 
       const bullets = [];
-      let shootCooldownLeft = 0;
 
-      const platforms = [
-        { x: 0, y: 394, w: 300, h: 46 },
-        { x: 220, y: 332, w: 150, h: 20 },
-        { x: 470, y: 278, w: 160, h: 20 },
-        { x: 690, y: 228, w: 170, h: 20 },
-        { x: 980, y: 300, w: 180, h: 20 },
-        { x: 1240, y: 256, w: 140, h: 20 },
-        { x: 1460, y: 214, w: 180, h: 20 },
-        { x: 1740, y: 270, w: 200, h: 20 },
-        { x: 2060, y: 330, w: 180, h: 20 },
-        { x: WORLD_WIDTH - 260, y: 394, w: 260, h: 46 },
-      ];
-
-      const finishPlatform = platforms[platforms.length - 1];
-      let levelComplete = false;
-
-      const enemies = [
-        { x: 280, y: 0, w: 24, h: 24, speed: 95, dir: 1, platform: 1, leftPad: 8, rightPad: 8 },
-        { x: 520, y: 0, w: 24, h: 24, speed: 115, dir: -1, platform: 2, leftPad: 10, rightPad: 10 },
-        { x: 760, y: 0, w: 24, h: 24, speed: 100, dir: 1, platform: 3, leftPad: 8, rightPad: 8 },
-        { x: 1520, y: 0, w: 24, h: 24, speed: 120, dir: -1, platform: 6, leftPad: 10, rightPad: 10 },
-        { x: 2115, y: 0, w: 24, h: 24, speed: 105, dir: 1, platform: 8, leftPad: 8, rightPad: 8 },
-      ];
-
-      enemies.forEach((enemy) => {
-        const patrolPlatform = platforms[enemy.platform];
-        enemy.minX = patrolPlatform.x + enemy.leftPad;
-        enemy.maxX = patrolPlatform.x + patrolPlatform.w - enemy.w - enemy.rightPad;
-        enemy.x = Math.max(enemy.minX, Math.min(enemy.maxX, enemy.x));
-        enemy.y = patrolPlatform.y - enemy.h;
-      });
-
+      let currentLevelIndex = 0;
+      let worldWidth = LEVELS[0].worldWidth;
+      let platforms = [];
+      let enemies = [];
+      let finishPlatform = null;
       let cameraX = 0;
+      let shootCooldownLeft = 0;
+      let levelComplete = false;
+      let gameComplete = false;
+      let ammoLeft = MAX_AMMO;
+
+      function loadLevel(index) {
+        const level = LEVELS[index];
+
+        worldWidth = level.worldWidth;
+        platforms = level.platforms.map((platform) => ({ ...platform }));
+        finishPlatform = platforms[platforms.length - 1];
+        enemies = level.enemies.map((enemy) => ({ ...enemy, w: 24, h: 24 }));
+
+        enemies.forEach((enemy) => {
+          const patrolPlatform = platforms[enemy.platform];
+          enemy.minX = patrolPlatform.x + enemy.leftPad;
+          enemy.maxX = patrolPlatform.x + patrolPlatform.w - enemy.w - enemy.rightPad;
+          enemy.x = Math.max(enemy.minX, Math.min(enemy.maxX, enemy.x));
+          enemy.y = patrolPlatform.y - enemy.h;
+        });
+
+        player.x = level.start.x;
+        player.y = level.start.y;
+        player.vx = 0;
+        player.vy = 0;
+        player.onGround = false;
+        player.facing = 1;
+
+        keys.left = false;
+        keys.right = false;
+        keys.jump = false;
+
+        bullets.length = 0;
+        shootCooldownLeft = 0;
+        levelComplete = false;
+        gameComplete = false;
+        ammoLeft = MAX_AMMO;
+        cameraX = 0;
+      }
 
       function resetPlayer() {
         if (levelComplete) return;
-        player.x = 80;
-        player.y = 220;
+
+        const level = LEVELS[currentLevelIndex];
+        player.x = level.start.x;
+        player.y = level.start.y;
         player.vx = 0;
         player.vy = 0;
         bullets.length = 0;
+      }
+
+      function tryAdvanceLevel() {
+        if (!levelComplete) return;
+
+        if (currentLevelIndex < LEVELS.length - 1) {
+          currentLevelIndex += 1;
+          loadLevel(currentLevelIndex);
+          return;
+        }
+
+        gameComplete = true;
+      }
+
+      function restartFromBeginning() {
+        currentLevelIndex = 0;
+        loadLevel(currentLevelIndex);
       }
 
       function keyState(key, isDown) {
@@ -134,6 +264,7 @@
           keys.left = isDown;
           if (isDown) player.facing = -1;
         }
+
         if (key === 'ArrowRight' || key.toLowerCase() === 'd') {
           keys.right = isDown;
           if (isDown) player.facing = 1;
@@ -141,7 +272,7 @@
 
         if (key === ' ') {
           if (isDown) {
-            if (!keys.jump && player.onGround) {
+            if (!keys.jump && player.onGround && !levelComplete) {
               player.vy = -JUMP_SPEED;
               player.onGround = false;
             }
@@ -156,16 +287,21 @@
       }
 
       window.addEventListener('keydown', (event) => {
-        if (
-          ['ArrowLeft', 'ArrowRight', ' ', 'Control'].includes(event.key) ||
-          event.key.toLowerCase() === 'a' ||
-          event.key.toLowerCase() === 'd' ||
-          event.key.toLowerCase() === 'control'
-        ) {
+        const normalizedKey = event.key.toLowerCase();
+        if (['arrowleft', 'arrowright', ' ', 'control', 'a', 'd'].includes(normalizedKey) || event.key === ' ') {
           event.preventDefault();
         }
 
-        if ((event.key === 'Control' || event.key.toLowerCase() === 'control') && !event.repeat) {
+        if (event.key === ' ' && !event.repeat && levelComplete) {
+          if (gameComplete) {
+            restartFromBeginning();
+          } else {
+            tryAdvanceLevel();
+          }
+          return;
+        }
+
+        if ((event.key === 'Control' || normalizedKey === 'control') && !event.repeat) {
           tryShoot();
         }
 
@@ -181,7 +317,7 @@
       }
 
       function tryShoot() {
-        if (levelComplete || shootCooldownLeft > 0) return;
+        if (levelComplete || shootCooldownLeft > 0 || ammoLeft <= 0) return;
 
         const bulletW = 10;
         const bulletH = 4;
@@ -197,6 +333,7 @@
         });
 
         shootCooldownLeft = SHOOT_COOLDOWN;
+        ammoLeft -= 1;
       }
 
       function update(dt) {
@@ -209,7 +346,7 @@
         if (keys.right) player.vx += MOVE_SPEED;
 
         player.x += player.vx * dt;
-        player.x = Math.max(0, Math.min(WORLD_WIDTH - player.w, player.x));
+        player.x = Math.max(0, Math.min(worldWidth - player.w, player.x));
 
         player.vy += GRAVITY * dt;
         player.y += player.vy * dt;
@@ -228,6 +365,7 @@
             player.y = platform.y - player.h;
             player.vy = 0;
             player.onGround = true;
+
             if (platform === finishPlatform) {
               levelComplete = true;
               keys.left = false;
@@ -252,9 +390,8 @@
           const bullet = bullets[bulletIndex];
           bullet.x += bullet.vx * dt;
 
-          if (bullet.x + bullet.w < 0 || bullet.x > WORLD_WIDTH) {
+          if (bullet.x + bullet.w < 0 || bullet.x > worldWidth) {
             bullets.splice(bulletIndex, 1);
-            continue;
           }
         }
 
@@ -275,23 +412,50 @@
             break;
           }
 
-          let enemyKilled = false;
           for (let bulletIndex = bullets.length - 1; bulletIndex >= 0; bulletIndex -= 1) {
             if (intersects(bullets[bulletIndex], enemy)) {
               bullets.splice(bulletIndex, 1);
               enemies.splice(enemyIndex, 1);
-              enemyKilled = true;
               break;
             }
-          }
-
-          if (enemyKilled) {
-            continue;
           }
         }
 
         const targetCamera = player.x - canvas.width * 0.35;
-        cameraX = Math.max(0, Math.min(WORLD_WIDTH - canvas.width, targetCamera));
+        cameraX = Math.max(0, Math.min(worldWidth - canvas.width, targetCamera));
+      }
+
+      function drawHud() {
+        ctx.fillStyle = '#d9e6ff';
+        ctx.font = 'bold 18px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText(`Level ${currentLevelIndex + 1}/${LEVELS.length}`, 16, 28);
+
+        ctx.textAlign = 'right';
+        ctx.fillText(`Ammo: ${ammoLeft}/${MAX_AMMO}`, canvas.width - 16, 28);
+
+        ctx.textAlign = 'left';
+        ctx.font = '16px Arial';
+        ctx.fillText('Reach the final platform.', 16, 52);
+      }
+
+      function drawLevelCompleteOverlay() {
+        ctx.fillStyle = 'rgba(7, 14, 24, 0.62)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#d8f7a1';
+        ctx.font = 'bold 44px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Level Complete!', canvas.width / 2, canvas.height / 2 - 8);
+
+        ctx.font = '20px Arial';
+        ctx.fillStyle = '#eef7ff';
+        if (gameComplete) {
+          ctx.fillText('All levels done. Press Space to restart.', canvas.width / 2, canvas.height / 2 + 34);
+        } else {
+          ctx.fillText('Press Space to start next level.', canvas.width / 2, canvas.height / 2 + 34);
+        }
+
+        ctx.textAlign = 'left';
       }
 
       function draw() {
@@ -301,7 +465,7 @@
         ctx.translate(-cameraX, 0);
 
         ctx.fillStyle = '#4f6c93';
-        for (let i = 0; i < WORLD_WIDTH; i += 80) {
+        for (let i = 0; i < worldWidth; i += 80) {
           ctx.fillRect(i, 0, 2, canvas.height);
         }
 
@@ -325,21 +489,10 @@
 
         ctx.restore();
 
-        ctx.fillStyle = '#d9e6ff';
-        ctx.font = '16px Arial';
-        ctx.fillText('Run to the right. Reach the final platform to win.', 16, 26);
+        drawHud();
 
         if (levelComplete) {
-          ctx.fillStyle = 'rgba(7, 14, 24, 0.6)';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.fillStyle = '#d8f7a1';
-          ctx.font = 'bold 42px Arial';
-          ctx.textAlign = 'center';
-          ctx.fillText('Level Complete!', canvas.width / 2, canvas.height / 2);
-          ctx.font = '20px Arial';
-          ctx.fillStyle = '#eef7ff';
-          ctx.fillText('You reached the final platform.', canvas.width / 2, canvas.height / 2 + 36);
-          ctx.textAlign = 'left';
+          drawLevelCompleteOverlay();
         }
       }
 
@@ -355,6 +508,7 @@
         requestAnimationFrame(gameLoop);
       }
 
+      loadLevel(currentLevelIndex);
       requestAnimationFrame(gameLoop);
     </script>
   </body>
