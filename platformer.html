@@ -337,6 +337,8 @@
 
         shootCooldownLeft = SHOOT_COOLDOWN;
         ammoLeft -= 1;
+        shotAudio.currentTime = 0;
+        shotAudio.play();
       }
 
       function update(dt) {
