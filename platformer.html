@@ -91,6 +91,9 @@
         backdrop-filter: blur(2px);
         -webkit-tap-highlight-color: transparent;
         touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
       }
 
       .mobile-btn:active {
@@ -135,6 +138,7 @@
         <p>Move: ← → or A / D, or tilt on mobile/tablet.</p>
         <p>Jump: Space or the bottom-right Jump button.</p>
         <p>Shoot: Ctrl or the bottom-left Shoot button.</p>
+        <p>After finishing a level: press Space or tap the game screen.</p>
         <p>Hold Space for full jump, release early for a shorter jump.</p>
         <p>Avoid red patrol cubes or you respawn at the start.</p>
       </details>
@@ -351,9 +355,31 @@
       }
 
       function onDeviceOrientation(event) {
-        if (typeof event.gamma !== 'number') return;
-        tiltGamma = Math.max(-MAX_TILT_DEG, Math.min(MAX_TILT_DEG, event.gamma));
-        motionStatusEl.textContent = `Tilt: active (${tiltGamma.toFixed(1)}°)`;
+        if (typeof event.gamma !== 'number' || typeof event.beta !== 'number') return;
+
+        const screenAngle =
+          typeof screen.orientation?.angle === 'number'
+            ? screen.orientation.angle
+            : typeof window.orientation === 'number'
+            ? window.orientation
+            : 0;
+
+        let lateralTilt = event.gamma;
+        let orientationLabel = 'portrait';
+
+        if (screenAngle === 90) {
+          lateralTilt = event.beta;
+          orientationLabel = 'landscape';
+        } else if (screenAngle === -90 || screenAngle === 270) {
+          lateralTilt = -event.beta;
+          orientationLabel = 'landscape';
+        } else if (screenAngle === 180 || screenAngle === -180) {
+          lateralTilt = -event.gamma;
+          orientationLabel = 'portrait';
+        }
+
+        tiltGamma = Math.max(-MAX_TILT_DEG, Math.min(MAX_TILT_DEG, lateralTilt));
+        motionStatusEl.textContent = `Tilt: active (${orientationLabel}, ${tiltGamma.toFixed(1)}°)`;
       }
 
       async function enableMotion() {
@@ -440,6 +466,18 @@
 
       bindHoldButton(jumpBtn, () => setJumpDown(true), () => setJumpDown(false));
       bindHoldButton(shootBtn, () => tryShoot(), () => {});
+
+      function handleTapAdvance(event) {
+        if (!levelComplete) return;
+        event.preventDefault();
+        if (gameComplete) {
+          restartFromBeginning();
+        } else {
+          tryAdvanceLevel();
+        }
+      }
+
+      canvas.addEventListener('pointerdown', handleTapAdvance, { passive: false });
 
       function intersects(a, b) {
         return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -590,9 +628,9 @@
         ctx.font = '20px Arial';
         ctx.fillStyle = '#eef7ff';
         if (gameComplete) {
-          ctx.fillText('All levels done. Press Space to restart.', canvas.width / 2, canvas.height / 2 + 34);
+          ctx.fillText('All levels done. Press Space or tap to restart.', canvas.width / 2, canvas.height / 2 + 34);
         } else {
-          ctx.fillText('Press Space to start next level.', canvas.width / 2, canvas.height / 2 + 34);
+          ctx.fillText('Press Space or tap to start next level.', canvas.width / 2, canvas.height / 2 + 34);
         }
 
         ctx.textAlign = 'left';
