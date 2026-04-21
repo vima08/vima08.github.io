@@ -53,7 +53,7 @@
     canvas {
       width: 100%;
       height: 520px;
-      background: #0d1220;
+      background: #ffffff;
       border-radius: 8px;
       border: 1px solid #2f3d61;
     }
@@ -91,7 +91,10 @@
       selectedCrease: 0,
       x: [],
       level: [],
-      flipped: []
+      flipped: [],
+      animating: false,
+      animation: null,
+      scruffy: false
     };
 
     function generate() {
@@ -101,27 +104,104 @@
       state.x = Array.from({ length: n + 2 }, (_, i) => i);
       state.level = Array.from({ length: n + 1 }, () => 0);
       state.flipped = Array.from({ length: n + 1 }, () => false);
+      state.animating = false;
+      state.animation = null;
+      state.scruffy = false;
       draw();
     }
 
-    function fold(direction) {
+    function intervalOverlap(a1, a2, b1, b2) {
+      const left = Math.max(Math.min(a1, a2), Math.min(b1, b2));
+      const right = Math.min(Math.max(a1, a2), Math.max(b1, b2));
+      return right > left + 0.00001;
+    }
+
+    function isIllegalFold(direction) {
       const k = state.selectedCrease;
       const pivot = state.x[k + 1];
       const base = state.level[k];
+      const moving = [];
+      const fixed = [];
+
+      for (let i = 0; i <= state.n; i++) {
+        const seg = { i, x1: state.x[i], x2: state.x[i + 1], level: state.level[i] };
+        if (i > k) moving.push(seg);
+        else fixed.push(seg);
+      }
+
+      for (const mv of moving) {
+        const startLevel = mv.level;
+        const endLevel = direction === 'up' ? 2 * base - mv.level + 1 : 2 * base - mv.level - 1;
+        const pathMinL = Math.min(startLevel, endLevel);
+        const pathMaxL = Math.max(startLevel, endLevel);
+
+        const endX1 = 2 * pivot - mv.x1;
+        const endX2 = 2 * pivot - mv.x2;
+        const sweepMinX = Math.min(mv.x1, mv.x2, endX1, endX2);
+        const sweepMaxX = Math.max(mv.x1, mv.x2, endX1, endX2);
+
+        for (const fx of fixed) {
+          if (fx.level <= pathMinL + 0.00001 || fx.level >= pathMaxL - 0.00001) continue;
+          if (intervalOverlap(sweepMinX, sweepMaxX, fx.x1, fx.x2)) return true;
+        }
+      }
+      return false;
+    }
+
+    function fold(direction) {
+      if (state.animating || state.scruffy) return;
+
+      if (isIllegalFold(direction)) {
+        state.scruffy = true;
+        draw();
+        return;
+      }
+
+      const k = state.selectedCrease;
+      const pivot = state.x[k + 1];
+      const base = state.level[k];
+      const xBefore = [...state.x];
+      const levelBefore = [...state.level];
+      const flippedBefore = [...state.flipped];
+      const xAfter = [...state.x];
+      const levelAfter = [...state.level];
+      const flippedAfter = [...state.flipped];
 
       for (let i = k + 1; i <= state.n + 1; i++) {
-        state.x[i] = 2 * pivot - state.x[i];
+        xAfter[i] = 2 * pivot - xAfter[i];
       }
 
       for (let s = k + 1; s <= state.n; s++) {
-        state.flipped[s] = !state.flipped[s];
+        flippedAfter[s] = !flippedAfter[s];
         if (direction === 'up') {
-          state.level[s] = 2 * base - state.level[s] + 1;
+          levelAfter[s] = 2 * base - levelAfter[s] + 1;
         } else {
-          state.level[s] = 2 * base - state.level[s] - 1;
+          levelAfter[s] = 2 * base - levelAfter[s] - 1;
         }
       }
-      draw();
+
+      state.animating = true;
+      const duration = 320;
+      const start = performance.now();
+      state.animation = { k, xBefore, levelBefore, flippedBefore, xAfter, levelAfter, flippedAfter };
+
+      function tick(now) {
+        if (!state.animation) return;
+        const t = Math.min(1, (now - start) / duration);
+        draw(t);
+        if (t < 1) {
+          requestAnimationFrame(tick);
+        } else {
+          state.x = xAfter;
+          state.level = levelAfter;
+          state.flipped = flippedAfter;
+          state.animating = false;
+          state.animation = null;
+          draw();
+        }
+      }
+
+      requestAnimationFrame(tick);
     }
 
     function worldToScreenX(xValue, minX, maxX, pad) {
@@ -130,15 +210,19 @@
       return pad + t * (canvas.width - 2 * pad);
     }
 
-    function draw() {
+    function draw(progress = null) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#0d1220';
+      ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      const minX = Math.min(...state.x);
-      const maxX = Math.max(...state.x);
-      const minLevel = Math.min(...state.level);
-      const maxLevel = Math.max(...state.level);
+      const anim = state.animation;
+      const xView = anim && progress !== null ? anim.xBefore.map((x, idx) => x + (anim.xAfter[idx] - x) * progress) : state.x;
+      const levelView = anim && progress !== null ? anim.levelBefore.map((lv, idx) => lv + (anim.levelAfter[idx] - lv) * progress) : state.level;
+
+      const minX = Math.min(...xView);
+      const maxX = Math.max(...xView);
+      const minLevel = Math.min(...levelView);
+      const maxLevel = Math.max(...levelView);
 
       const pad = 56;
       const baseY = canvas.height / 2 + ((minLevel + maxLevel) * -11) / 2;
@@ -146,57 +230,76 @@
       const thickness = 6;
 
       ctx.lineWidth = 1;
-      ctx.strokeStyle = '#3a4b79';
+      ctx.strokeStyle = '#d6d6d6';
       ctx.beginPath();
       ctx.moveTo(0, canvas.height / 2 + 0.5);
       ctx.lineTo(canvas.width, canvas.height / 2 + 0.5);
       ctx.stroke();
 
-      for (let i = 0; i <= state.n; i++) {
-        const x1 = worldToScreenX(state.x[i], minX, maxX, pad);
-        const x2 = worldToScreenX(state.x[i + 1], minX, maxX, pad);
-        const y = baseY + state.level[i] * levelStep;
+      const isMoving = (idx) => anim && progress !== null && idx > anim.k;
 
-        const topShift = state.flipped[i] ? thickness / 2 : -thickness / 2;
+      for (let i = 0; i <= state.n; i++) {
+        const x1 = worldToScreenX(xView[i], minX, maxX, pad);
+        const x2 = worldToScreenX(xView[i + 1], minX, maxX, pad);
+        const y = baseY + levelView[i] * levelStep;
+        const moving = isMoving(i);
+
+        const flipNow = moving && progress !== null && progress >= 0.5
+          ? !anim.flippedBefore[i]
+          : (anim && progress !== null ? anim.flippedBefore[i] : state.flipped[i]);
+
+        const topShift = flipNow ? thickness / 2 : -thickness / 2;
         const bottomShift = -topShift;
 
         ctx.lineWidth = 3;
-        ctx.strokeStyle = '#ff4d4d';
+        ctx.strokeStyle = moving ? '#ff8a65' : '#ff4d4d';
         ctx.beginPath();
         ctx.moveTo(x1, y + topShift);
         ctx.lineTo(x2, y + topShift);
         ctx.stroke();
 
-        ctx.strokeStyle = '#111';
+        ctx.strokeStyle = moving ? '#555' : '#111';
         ctx.beginPath();
         ctx.moveTo(x1, y + bottomShift);
         ctx.lineTo(x2, y + bottomShift);
         ctx.stroke();
 
-        ctx.fillStyle = '#f4f4f4';
+        ctx.fillStyle = '#222';
         ctx.font = '13px Arial';
         ctx.textAlign = 'center';
         ctx.fillText(String(i), (x1 + x2) / 2, y - 10);
       }
 
       for (let c = 0; c < state.n; c++) {
-        const cx = worldToScreenX(state.x[c + 1], minX, maxX, pad);
-        const cy = baseY + ((state.level[c] + state.level[c + 1]) / 2) * levelStep;
+        const cx = worldToScreenX(xView[c + 1], minX, maxX, pad);
+        const cy = baseY + ((levelView[c] + levelView[c + 1]) / 2) * levelStep;
         ctx.fillStyle = c === state.selectedCrease ? '#ffe066' : '#8ea2d3';
         ctx.beginPath();
         ctx.arc(cx, cy, c === state.selectedCrease ? 6 : 4, 0, Math.PI * 2);
         ctx.fill();
       }
 
-      statusEl.textContent = `selected crease: ${state.selectedCrease}`;
+      if (state.scruffy) {
+        ctx.fillStyle = '#d90429';
+        ctx.font = 'bold 64px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('SCRUFFY', canvas.width / 2, canvas.height / 2);
+        statusEl.textContent = 'SCRUFFY: illegal fold (paper would pass through itself)';
+      } else {
+        statusEl.textContent = state.animating
+          ? `selected crease: ${state.selectedCrease} (folding...)`
+          : `selected crease: ${state.selectedCrease}`;
+      }
     }
 
     document.getElementById('generateBtn').addEventListener('click', generate);
     document.getElementById('leftBtn').addEventListener('click', () => {
+      if (state.animating || state.scruffy) return;
       state.selectedCrease = Math.max(0, state.selectedCrease - 1);
       draw();
     });
     document.getElementById('rightBtn').addEventListener('click', () => {
+      if (state.animating || state.scruffy) return;
       state.selectedCrease = Math.min(state.n - 1, state.selectedCrease + 1);
       draw();
     });
@@ -204,6 +307,7 @@
     document.getElementById('downBtn').addEventListener('click', () => fold('down'));
 
     window.addEventListener('keydown', (e) => {
+      if (state.animating || state.scruffy) return;
       if (e.key === 'ArrowLeft') {
         state.selectedCrease = Math.max(0, state.selectedCrease - 1);
         draw();
