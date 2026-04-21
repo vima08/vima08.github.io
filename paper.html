@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Paper Folding</title>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #101522;
+      color: #f4f4f4;
+      display: flex;
+      justify-content: center;
+      padding: 16px;
+    }
+    .game {
+      width: min(980px, 100%);
+      background: #1b2338;
+      border: 1px solid #2f3d61;
+      border-radius: 10px;
+      padding: 14px;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    input[type="number"] {
+      width: 110px;
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid #44537d;
+      background: #121a2e;
+      color: #fff;
+    }
+    button {
+      border: 1px solid #44537d;
+      background: #25345b;
+      color: #fff;
+      border-radius: 6px;
+      padding: 7px 10px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #30477b;
+    }
+    canvas {
+      width: 100%;
+      height: 520px;
+      background: #0d1220;
+      border-radius: 8px;
+      border: 1px solid #2f3d61;
+    }
+    .hint {
+      color: #c9d1e3;
+      margin: 0;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="game">
+    <div class="row">
+      <label for="nInput">n:</label>
+      <input id="nInput" type="number" min="1" max="40" value="8" />
+      <button id="generateBtn">Generate</button>
+      <button id="leftBtn">⬅️ left</button>
+      <button id="rightBtn">➡️ right</button>
+      <button id="upBtn">⬆️ fold up</button>
+      <button id="downBtn">⬇️ fold down</button>
+      <span id="status"></span>
+    </div>
+    <p class="hint">Красная линия — верхняя поверхность, чёрная — нижняя. Выбирайте точку сгиба и складывайте правую часть листа, чтобы собирать гармошки.</p>
+    <canvas id="canvas" width="940" height="520"></canvas>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const nInput = document.getElementById('nInput');
+    const statusEl = document.getElementById('status');
+
+    const state = {
+      n: 8,
+      selectedCrease: 0,
+      x: [],
+      level: [],
+      flipped: []
+    };
+
+    function generate() {
+      const n = Math.max(1, Math.min(40, Math.floor(Number(nInput.value) || 1)));
+      state.n = n;
+      state.selectedCrease = 0;
+      state.x = Array.from({ length: n + 2 }, (_, i) => i);
+      state.level = Array.from({ length: n + 1 }, () => 0);
+      state.flipped = Array.from({ length: n + 1 }, () => false);
+      draw();
+    }
+
+    function fold(direction) {
+      const k = state.selectedCrease;
+      const pivot = state.x[k + 1];
+      const base = state.level[k];
+
+      for (let i = k + 1; i <= state.n + 1; i++) {
+        state.x[i] = 2 * pivot - state.x[i];
+      }
+
+      for (let s = k + 1; s <= state.n; s++) {
+        state.flipped[s] = !state.flipped[s];
+        if (direction === 'up') {
+          state.level[s] = 2 * base - state.level[s] + 1;
+        } else {
+          state.level[s] = 2 * base - state.level[s] - 1;
+        }
+      }
+      draw();
+    }
+
+    function worldToScreenX(xValue, minX, maxX, pad) {
+      if (Math.abs(maxX - minX) < 0.00001) return canvas.width / 2;
+      const t = (xValue - minX) / (maxX - minX);
+      return pad + t * (canvas.width - 2 * pad);
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#0d1220';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const minX = Math.min(...state.x);
+      const maxX = Math.max(...state.x);
+      const minLevel = Math.min(...state.level);
+      const maxLevel = Math.max(...state.level);
+
+      const pad = 56;
+      const baseY = canvas.height / 2 + ((minLevel + maxLevel) * -11) / 2;
+      const levelStep = 22;
+      const thickness = 6;
+
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = '#3a4b79';
+      ctx.beginPath();
+      ctx.moveTo(0, canvas.height / 2 + 0.5);
+      ctx.lineTo(canvas.width, canvas.height / 2 + 0.5);
+      ctx.stroke();
+
+      for (let i = 0; i <= state.n; i++) {
+        const x1 = worldToScreenX(state.x[i], minX, maxX, pad);
+        const x2 = worldToScreenX(state.x[i + 1], minX, maxX, pad);
+        const y = baseY + state.level[i] * levelStep;
+
+        const topShift = state.flipped[i] ? thickness / 2 : -thickness / 2;
+        const bottomShift = -topShift;
+
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#ff4d4d';
+        ctx.beginPath();
+        ctx.moveTo(x1, y + topShift);
+        ctx.lineTo(x2, y + topShift);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#111';
+        ctx.beginPath();
+        ctx.moveTo(x1, y + bottomShift);
+        ctx.lineTo(x2, y + bottomShift);
+        ctx.stroke();
+
+        ctx.fillStyle = '#f4f4f4';
+        ctx.font = '13px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(String(i), (x1 + x2) / 2, y - 10);
+      }
+
+      for (let c = 0; c < state.n; c++) {
+        const cx = worldToScreenX(state.x[c + 1], minX, maxX, pad);
+        const cy = baseY + ((state.level[c] + state.level[c + 1]) / 2) * levelStep;
+        ctx.fillStyle = c === state.selectedCrease ? '#ffe066' : '#8ea2d3';
+        ctx.beginPath();
+        ctx.arc(cx, cy, c === state.selectedCrease ? 6 : 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      statusEl.textContent = `selected crease: ${state.selectedCrease}`;
+    }
+
+    document.getElementById('generateBtn').addEventListener('click', generate);
+    document.getElementById('leftBtn').addEventListener('click', () => {
+      state.selectedCrease = Math.max(0, state.selectedCrease - 1);
+      draw();
+    });
+    document.getElementById('rightBtn').addEventListener('click', () => {
+      state.selectedCrease = Math.min(state.n - 1, state.selectedCrease + 1);
+      draw();
+    });
+    document.getElementById('upBtn').addEventListener('click', () => fold('up'));
+    document.getElementById('downBtn').addEventListener('click', () => fold('down'));
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') {
+        state.selectedCrease = Math.max(0, state.selectedCrease - 1);
+        draw();
+      } else if (e.key === 'ArrowRight') {
+        state.selectedCrease = Math.min(state.n - 1, state.selectedCrease + 1);
+        draw();
+      } else if (e.key === 'ArrowUp') {
+        fold('up');
+      } else if (e.key === 'ArrowDown') {
+        fold('down');
+      }
+    });
+
+    generate();
+  </script>
+</body>
+</html>
