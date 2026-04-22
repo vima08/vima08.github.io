@@ -84,14 +84,26 @@ def apply_op(op: Operation, cards: List[Card], done_idx: int, ops: List[Operatio
         print("Min_l = ", min_l)
         print("Max_l = ", max_l)
          
-  
+    layers = [op['layer'] if isinstance(op, dict) else op.layer 
+              for op in cards if (op['pos'] if isinstance(op, dict) else op.pos) == pivot.pos]
+    min_piv = min(layers)
+    if isDebug:
+        print("min_piv = ", min_piv)
+
     # пересчитываем координаты и слой для правой части
+    orig_right = [Card(id=c.id, pos=c.pos, layer=c.layer, side=c.side) for c in right_side]
+
+
     for c in right_side:
         layers = [op['layer'] if isinstance(op, dict) else op.layer 
-              for op in right_side if (op['pos'] if isinstance(op, dict) else op.pos) == c.pos]
+              for op in orig_right if (op['pos'] if isinstance(op, dict) else op.pos) == c.pos]
         min_r = min(layers) 
+        max_r = max(layers)
         if isDebug:
+            #print(layers)
+            #print(orig_right)
             print("Min_r = ", min_r)
+            print("Max_r = ", max_r)
         # отражаем позицию относительно линии сгиба
         c.pos = op.pos - (c.pos - op.pos) - 1
   
@@ -99,14 +111,14 @@ def apply_op(op: Operation, cards: List[Card], done_idx: int, ops: List[Operatio
          
         if is_even_layer:
             if op.direction == 'R':
-                c.layer = max(max_l + 1, op.layer + abs(c.layer - op.layer) + 1)#max_l + 1#
+                c.layer = max(max_l + 1, op.layer + abs(c.layer - max_r) + 1)#max_l + 1#
             else:  # 'F'
                 c.layer = min(min_l - 1, op.layer - (c.layer - min_r) - 1)
         else: 
             if op.direction == 'R':
-                c.layer = max(max_l + 1, op.layer + abs(c.layer - op.layer) + 1)
+                c.layer = max(max_l + 1, op.layer + abs(c.layer - max_r) + 1)
             else:  # 'F'
-                c.layer = min(min_l - 1, op.layer - (c.layer - min_r) - 1)  #op.layer - (c.layer - min_r) - 1 
+                c.layer = min(min_l - 1, min_piv - (c.layer - min_r) - 1)  #op.layer - (c.layer - min_r) - 1 
         c.side = 'R' if c.side == 'F' else 'F'
     #recalculate_ops(done_idx: int, ops: List[Operation], pivot, cards) -> None:
     """Пересчитать будущие операции после поворота."""
@@ -115,16 +127,16 @@ def apply_op(op: Operation, cards: List[Card], done_idx: int, ops: List[Operatio
     pivot = op
     for i in range(done_idx+1, len(ops)):
         op = ops[i]
-        if (op.pos >= pivot.pos and is_even_layer) or (op.pos < pivot.pos and not is_even_layer):
+        if (op.pos > pivot.pos and is_even_layer) or (op.pos < pivot.pos and not is_even_layer):
             op.pos = 2*pivot.pos - op.pos
             if is_even_layer:
                 if pivot.direction == 'R':
-                    op.layer = max(max_l + 1, op.layer + abs(c.layer - op.layer) + 1)
+                    op.layer = max(max_l + 1, op.layer + abs(c.layer - op.layer))
                 else:  # 'F'
                     op.layer = min(pivot.layer - (op.layer - min_r) - 1, min_l - 1)
             else:
                 if pivot.direction == 'R':
-                    op.layer = max(max_l + 1, op.layer + abs(c.layer - op.layer) + 1)
+                    op.layer = max(max_l + 1, op.layer + abs(c.layer - op.layer))
                 else:  # 'F'
                     op.layer = min(pivot.layer - (op.layer - min_r) - 1, min_l - 1) #pivot.layer - (op.layer - min_r) - 1
             op.direction = 'R' if op.direction == 'F' else 'F'
@@ -228,7 +240,9 @@ if __name__ == "__main__":
     "3 2 2R 1R",
     "4 2 4F 3F",
     "5 5 2F 3R 1F 4R 5R",
-    "6 4 5F 4R 3F 1F"
+    "6 4 5F 4R 3F 1F",
+    "7 7 1R 3F 4R 7F 6R 5R 2F",
+    "7 7 1F 3F 4R 7F 6R 5R 2F"
     ]
     expected_results = [
         "P0R P3R",
@@ -237,6 +251,8 @@ if __name__ == "__main__":
         "P0F P1F P2F P3F P0R P1R",
         "P4R P5R",
         "P0F P1F P2F P5F",
+        "P0R P5R",
+        "P1R P5R"
     ]
 
     if runAT:
