@@ -230,21 +230,36 @@ if __name__ == "__main__":
     "5 5 2F 3R 1F 4R 5R",
     "6 4 5F 4R 3F 1F"
     ]
-        
+    expected_results = [
+        "P0R P3R",
+        "P0F P1F",
+        "SCRUFFY",
+        "P0F P1F P2F P3F P0R P1R",
+        "P4R P5R",
+        "P0F P1F P2F P5F",
+    ]
+
     if runAT:
         print("\nAutotests\n")
         isDebug = False
-        for test in tests:
+        for idx, test in enumerate(tests):
             n, m, *inp_ops =  test.split()
             n, m = int(n), int(m)
             strO = " ".join(inp_ops)
             ops = parse_ops(strO)
+            expected = expected_results[idx]
             print("test ", test)
             cards = simulate_folding(n, ops)
-            if not cards == None:
-                print("result ", calculate_visibility(cards), "\n")
+
+            if cards is None:
+                result = "SCRUFFY"
             else:
-                print("")
+                result = calculate_visibility(cards)
+
+            status = "passed" if result == expected else "failed"
+            print(f"result   {result}")
+            print(f"expected {expected}")
+            print(f"{status}\n")
                 
 """
 test  3 3 2F 3R 1R
