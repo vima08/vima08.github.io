@@ -72,8 +72,8 @@
       <button id="generateBtn">Generate</button>
       <button id="leftBtn">⬅️ left</button>
       <button id="rightBtn">➡️ right</button>
-      <button id="upBtn">⬆️ fold up</button>
-      <button id="downBtn">⬇️ fold down</button>
+      <button id="upBtn"> ^ fold up</button>
+      <button id="downBtn"> V fold down</button>
       <span id="status"></span>
     </div>
     <p class="hint">Красная линия — верхняя поверхность, чёрная — нижняя. Выбирайте точку сгиба и складывайте правую часть листа, чтобы собирать гармошки.</p>
@@ -145,6 +145,27 @@
           if (intervalOverlap(sweepMinX, sweepMaxX, fx.x1, fx.x2)) return true;
         }
       }
+
+      const xAfter = [...state.x];
+      const levelAfter = [...state.level];
+      for (let i = k + 1; i <= state.n + 1; i++) {
+        xAfter[i] = 2 * pivot - xAfter[i];
+      }
+      for (let s = k + 1; s <= state.n; s++) {
+        if (direction === 'up') {
+          levelAfter[s] = 2 * base - levelAfter[s] + 1;
+        } else {
+          levelAfter[s] = 2 * base - levelAfter[s] - 1;
+        }
+      }
+
+      for (let i = 0; i <= state.n; i++) {
+        for (let j = i + 1; j <= state.n; j++) {
+          if (Math.abs(levelAfter[i] - levelAfter[j]) > 0.00001) continue;
+          if (intervalOverlap(xAfter[i], xAfter[i + 1], xAfter[j], xAfter[j + 1])) return true;
+        }
+      }
+
       return false;
     }
 
@@ -287,8 +308,8 @@
         statusEl.textContent = 'SCRUFFY: illegal fold (paper would pass through itself)';
       } else {
         statusEl.textContent = state.animating
-          ? `selected crease: ${state.selectedCrease} (folding...)`
-          : `selected crease: ${state.selectedCrease}`;
+          ? `selected crease: ${state.selectedCrease + 1} (folding...)`
+          : `selected crease: ${state.selectedCrease + 1}`;
       }
     }
 
