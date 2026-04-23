@@ -16,13 +16,14 @@ class Operation:
     pos: int
     direction: str  # 'L', 'R', 'R', 'F'
     layer: int      # для совместимости, пока 0
+    id: int
   
 def parse_ops(ops_str: str):
-    return [Operation(int(op[:-1]), op[-1], 0) for op in ops_str.split()]
+    return [Operation(int(op[:-1]), op[-1], 0, int(op[:-1])) for op in ops_str.split()]
       
 def find_pivot(op: Operation, cards: List[Card]):
     for c in cards:
-        if c.pos == op.pos and c.layer == op.layer:
+        if c.pos == op.pos and c.layer == op.layer  and (c.id == op.id or c.id == op.id - 1 ): # : #
             return c
       
       
@@ -33,6 +34,8 @@ def print_cards(cards: List[Card]):
 def is_scruffy(op: Operation, cards: List[Card]) -> bool:
     """Проверка 'смятия' — если две карты окажутся в одном слое и позиции."""
     pivot = find_pivot(op, cards)
+    if isDebug:
+        print("pivot = ", pivot)
     right_side = [c for c in cards if c.id >= pivot.id]
     left_side = [c for c in cards if c.id < pivot.id]
     is_even_layer = (op.layer % 2) == 0
@@ -87,8 +90,10 @@ def apply_op(op: Operation, cards: List[Card], done_idx: int, ops: List[Operatio
     layers = [op['layer'] if isinstance(op, dict) else op.layer 
               for op in cards if (op['pos'] if isinstance(op, dict) else op.pos) == pivot.pos]
     min_piv = min(layers)
+    max_piv = max(layers)
     if isDebug:
         print("min_piv = ", min_piv)
+        print("max_piv = ", max_piv)
 
     # пересчитываем координаты и слой для правой части
     orig_right = [Card(id=c.id, pos=c.pos, layer=c.layer, side=c.side) for c in right_side]
@@ -111,12 +116,12 @@ def apply_op(op: Operation, cards: List[Card], done_idx: int, ops: List[Operatio
          
         if is_even_layer:
             if op.direction == 'R':
-                c.layer = max(max_l + 1, op.layer + abs(c.layer - max_r) + 1)#max_l + 1#
+                c.layer = max(max_l + 1, max_piv + abs(c.layer - max_r) + 1)#max_l + 1#
             else:  # 'F'
                 c.layer = min(min_l - 1, op.layer - (c.layer - min_r) - 1)
         else: 
             if op.direction == 'R':
-                c.layer = max(max_l + 1, op.layer + abs(c.layer - max_r) + 1)
+                c.layer = max(max_l + 1, max_piv + abs(c.layer - max_r) + 1)
             else:  # 'F'
                 c.layer = min(min_l - 1, min_piv - (c.layer - min_r) - 1)  #op.layer - (c.layer - min_r) - 1 
         c.side = 'R' if c.side == 'F' else 'F'
@@ -252,7 +257,7 @@ if __name__ == "__main__":
         "P4R P5R",
         "P0F P1F P2F P5F",
         "P0R P5R",
-        "P1R P5R"
+        "P1F P5R"
     ]
 
     if runAT:
