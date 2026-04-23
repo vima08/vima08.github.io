@@ -247,7 +247,8 @@ if __name__ == "__main__":
     "5 5 2F 3R 1F 4R 5R",
     "6 4 5F 4R 3F 1F",
     "7 7 1R 3F 4R 7F 6R 5R 2F",
-    "7 7 1F 3F 4R 7F 6R 5R 2F"
+    "7 7 1F 3F 4R 7F 6R 5R 2F",
+    "7 7 7F 5F 4R 1F 2R 3R 6F"
     ]
     expected_results = [
         "P0R P3R",
@@ -257,7 +258,8 @@ if __name__ == "__main__":
         "P4R P5R",
         "P0F P1F P2F P5F",
         "P0R P5R",
-        "P1F P5R"
+        "P1F P5R",
+        "P1F P5R" # надо пересчитать
     ]
 
     if runAT:
