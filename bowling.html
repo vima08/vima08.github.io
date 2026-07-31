@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Bowling</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      color: #f7fbff;
+      background: radial-gradient(circle at top, #24385d 0%, #101522 54%, #070a10 100%);
+    }
+    #game {
+      position: fixed;
+      inset: 0;
+    }
+    .hud {
+      position: fixed;
+      left: 18px;
+      top: 18px;
+      z-index: 2;
+      width: min(360px, calc(100vw - 36px));
+      padding: 16px 18px;
+      background: rgba(9, 14, 25, 0.72);
+      border: 1px solid rgba(160, 190, 255, 0.22);
+      border-radius: 14px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(8px);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      letter-spacing: 0.02em;
+    }
+    p {
+      margin: 6px 0;
+      color: #c9d8f4;
+      line-height: 1.35;
+    }
+    #status {
+      margin-top: 10px;
+      color: #ffffff;
+      font-weight: 700;
+    }
+    a {
+      color: #9fc2ff;
+      text-decoration: none;
+    }
+    a:hover { text-decoration: underline; }
+    .power-wrap {
+      width: 100%;
+      height: 10px;
+      margin-top: 12px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.14);
+      border-radius: 999px;
+    }
+    #powerBar {
+      width: 45%;
+      height: 100%;
+      background: linear-gradient(90deg, #43e97b, #ffe066, #ff6b6b);
+      border-radius: inherit;
+      transition: width 80ms linear;
+    }
+  </style>
+</head>
+<body>
+  <div id="game"></div>
+  <section class="hud" aria-label="Game information">
+    <h1>3D Bowling</h1>
+    <p>Move: ← → &nbsp; Aim: ↑ ↓ &nbsp; Throw: Space &nbsp; Reset: R</p>
+    <p>Use arrows to line up your shot, then launch the ball down the lane.</p>
+    <p id="status">Score: 0 | Throws: 0 | Ready</p>
+    <div class="power-wrap" aria-label="Throw power"><div id="powerBar"></div></div>
+    <p><a href="/index.html">← Back to games</a></p>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script>
+    const gameEl = document.getElementById('game');
+    const statusEl = document.getElementById('status');
+    const powerBar = document.getElementById('powerBar');
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x101522, 28, 75);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 120);
+    camera.position.set(0, 7.2, 16);
+    camera.lookAt(0, 0.5, -12);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    gameEl.appendChild(renderer.domElement);
+
+    scene.add(new THREE.HemisphereLight(0xbdd7ff, 0x1b150f, 1.35));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.8);
+    keyLight.position.set(-8, 13, 10);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(2048, 2048);
+    scene.add(keyLight);
+
+    const lane = new THREE.Mesh(
+      new THREE.BoxGeometry(8, 0.25, 44),
+      new THREE.MeshStandardMaterial({ color: 0xba7a36, roughness: 0.45, metalness: 0.05 })
+    );
+    lane.position.z = -12;
+    lane.receiveShadow = true;
+    scene.add(lane);
+
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(46, 80),
+      new THREE.MeshStandardMaterial({ color: 0x0b1020, roughness: 0.85 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -0.15;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    const railMaterial = new THREE.MeshStandardMaterial({ color: 0x263a64, roughness: 0.55 });
+    [-4.45, 4.45].forEach((x) => {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.42, 44), railMaterial);
+      rail.position.set(x, 0.2, -12);
+      rail.castShadow = true;
+      rail.receiveShadow = true;
+      scene.add(rail);
+    });
+
+    const ball = new THREE.Mesh(
+      new THREE.SphereGeometry(0.48, 48, 32),
+      new THREE.MeshStandardMaterial({ color: 0x2f7bff, roughness: 0.28, metalness: 0.18 })
+    );
+    ball.castShadow = true;
+    scene.add(ball);
+
+    const pinMaterial = new THREE.MeshStandardMaterial({ color: 0xf8f6ef, roughness: 0.35 });
+    const bandMaterial = new THREE.MeshStandardMaterial({ color: 0xd82332, roughness: 0.4 });
+    const pins = [];
+
+    function createPin(x, z) {
+      const group = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.85, 8, 24), pinMaterial);
+      body.position.y = 0.58;
+      body.castShadow = true;
+      const band = new THREE.Mesh(new THREE.TorusGeometry(0.225, 0.025, 8, 28), bandMaterial);
+      band.position.y = 0.88;
+      band.rotation.x = Math.PI / 2;
+      band.castShadow = true;
+      group.add(body, band);
+      group.position.set(x, 0, z);
+      group.userData = { standing: true, velocity: new THREE.Vector3(), spin: 0 };
+      scene.add(group);
+      pins.push(group);
+    }
+
+    const pinRows = [1, 2, 3, 4];
+    pinRows.forEach((count, row) => {
+      for (let i = 0; i < count; i++) {
+        createPin((i - (count - 1) / 2) * 0.72, -27.5 - row * 0.72);
+      }
+    });
+
+    const keys = new Set();
+    let ballVelocity = new THREE.Vector3();
+    let rolling = false;
+    let power = 0.45;
+    let powerDirection = 1;
+    let aim = 0;
+    let score = 0;
+    let throws = 0;
+
+    function resetBall() {
+      ball.position.set(0, 0.48, 7.5);
+      ballVelocity.set(0, 0, 0);
+      rolling = false;
+      aim = 0;
+    }
+
+    function resetPins() {
+      pins.forEach((pin, index) => {
+        const row = Math.floor((Math.sqrt(8 * index + 1) - 1) / 2);
+        const firstIndex = row * (row + 1) / 2;
+        const count = row + 1;
+        const offset = index - firstIndex;
+        pin.position.set((offset - (count - 1) / 2) * 0.72, 0, -27.5 - row * 0.72);
+        pin.rotation.set(0, 0, 0);
+        pin.userData.standing = true;
+        pin.userData.velocity.set(0, 0, 0);
+        pin.userData.spin = 0;
+        pin.visible = true;
+      });
+    }
+
+    function updateStatus(message = rolling ? 'Rolling...' : 'Ready') {
+      statusEl.textContent = `Score: ${score} | Throws: ${throws} | ${message}`;
+      powerBar.style.width = `${Math.round(power * 100)}%`;
+    }
+
+    function throwBall() {
+      if (rolling) return;
+      throws += 1;
+      rolling = true;
+      ballVelocity.set(aim * 0.075, 0, -0.38 - power * 0.52);
+      updateStatus('Rolling...');
+    }
+
+    resetBall();
+    updateStatus();
+
+    window.addEventListener('keydown', (event) => {
+      keys.add(event.key);
+      if (event.key === ' ') {
+        event.preventDefault();
+        throwBall();
+      }
+      if (event.key.toLowerCase() === 'r') {
+        score = 0;
+        throws = 0;
+        resetBall();
+        resetPins();
+        updateStatus('Reset');
+      }
+    });
+    window.addEventListener('keyup', (event) => keys.delete(event.key));
+
+    function knockPin(pin, impulseX, impulseZ) {
+      if (!pin.userData.standing) return;
+      pin.userData.standing = false;
+      pin.userData.velocity.set(impulseX, 0, impulseZ);
+      pin.userData.spin = (Math.random() - 0.5) * 0.16;
+      score += 1;
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      if (!rolling) {
+        power += powerDirection * 0.008;
+        if (power > 1 || power < 0.25) {
+          powerDirection *= -1;
+          power = THREE.MathUtils.clamp(power, 0.25, 1);
+        }
+        if (keys.has('ArrowLeft')) ball.position.x -= 0.055;
+        if (keys.has('ArrowRight')) ball.position.x += 0.055;
+        if (keys.has('ArrowUp')) aim -= 0.018;
+        if (keys.has('ArrowDown')) aim += 0.018;
+        ball.position.x = THREE.MathUtils.clamp(ball.position.x, -2.9, 2.9);
+        aim = THREE.MathUtils.clamp(aim, -1.2, 1.2);
+      } else {
+        ball.position.add(ballVelocity);
+        ball.rotation.x += Math.abs(ballVelocity.z) * 1.8;
+        ball.rotation.z -= ballVelocity.x * 1.8;
+        ballVelocity.multiplyScalar(0.992);
+
+        if (Math.abs(ball.position.x) > 3.65) {
+          ballVelocity.x *= -0.58;
+          ball.position.x = THREE.MathUtils.clamp(ball.position.x, -3.65, 3.65);
+        }
+
+        pins.forEach((pin) => {
+          const dx = pin.position.x - ball.position.x;
+          const dz = pin.position.z - ball.position.z;
+          const hitDistance = Math.hypot(dx, dz);
+          if (pin.userData.standing && hitDistance < 0.82) {
+            const strength = Math.max(0.09, Math.abs(ballVelocity.z) * 0.35);
+            knockPin(pin, dx * strength, ballVelocity.z * 0.45);
+          }
+        });
+
+        if (ball.position.z < -34 || ballVelocity.length() < 0.045) {
+          resetBall();
+          updateStatus(score === 10 ? 'Strike! Press R to play again' : 'Ready for next throw');
+        }
+      }
+
+      pins.forEach((pin) => {
+        if (!pin.userData.standing) {
+          pin.position.add(pin.userData.velocity);
+          pin.userData.velocity.multiplyScalar(0.94);
+          pin.rotation.x = Math.min(pin.rotation.x + 0.07, Math.PI / 2);
+          pin.rotation.z += pin.userData.spin;
+        }
+      });
+
+      camera.position.x += (ball.position.x * 0.32 - camera.position.x) * 0.035;
+      camera.lookAt(ball.position.x * 0.18, 0.55, -13);
+      updateStatus();
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+  </script>
+</body>
+</html>
