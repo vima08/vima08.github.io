@@ -1,74 +1,248 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>3D Breakout</title>
-  <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; color: #fff; background: #070b18; }
-    #game { position: fixed; inset: 0; }
-    .hud { position: fixed; z-index: 2; top: 16px; left: 16px; width: min(390px, calc(100vw - 32px)); padding: 15px 18px; border: 1px solid #6c8cff55; border-radius: 14px; background: #081022cc; backdrop-filter: blur(8px); }
-    h1 { margin: 0 0 7px; font-size: 24px; } p { margin: 6px 0; color: #cbd7ff; line-height: 1.35; } #status { color: #fff; font-weight: bold; } a { color: #8fbdff; }
-  </style>
-</head>
-<body>
-  <div id="game"></div>
-  <section class="hud"><h1>3D Breakout</h1><p>Move: ← → or A D &nbsp; Launch: Space &nbsp; Reset: R</p><p>Break every neon block without losing all three balls.</p><p id="status"></p><p><a href="/index.html">← Back to games</a></p></section>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-  <script>
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x070b18);
-    scene.fog = new THREE.Fog(0x070b18, 28, 52);
-    const camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, .1, 100);
-    camera.position.set(0, 18, 20); camera.lookAt(0, 0, -5);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight); renderer.shadowMap.enabled = true;
-    document.getElementById('game').appendChild(renderer.domElement);
-    scene.add(new THREE.HemisphereLight(0xaac8ff, 0x141025, 1.5));
-    const light = new THREE.DirectionalLight(0xffffff, 2); light.position.set(-6, 15, 8); light.castShadow = true; scene.add(light);
-    const board = new THREE.Mesh(new THREE.BoxGeometry(20, .5, 30), new THREE.MeshStandardMaterial({ color: 0x101a36, roughness: .55, metalness: .25 }));
-    board.position.y = -.5; board.receiveShadow = true; scene.add(board);
-    const grid = new THREE.GridHelper(30, 30, 0x3758a0, 0x182348); grid.position.y = -.23; scene.add(grid);
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0x334b88, metalness: .5 });
-    [-10.25, 10.25].forEach(x => { const wall = new THREE.Mesh(new THREE.BoxGeometry(.5, 1, 30), wallMat); wall.position.set(x, 0, 0); scene.add(wall); });
-    const paddle = new THREE.Mesh(new THREE.BoxGeometry(4, .8, 1.1), new THREE.MeshStandardMaterial({ color: 0x5be7ff, emissive: 0x0c5060 }));
-    paddle.position.set(0, .25, 11.5); paddle.castShadow = true; scene.add(paddle);
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(.42, 24, 16), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x7777ff })); ball.castShadow = true; scene.add(ball);
-    const blocks = [], colors = [0xff477e, 0xff9f43, 0xffdd59, 0x48dbfb, 0x9b6bff];
-    for (let row = 0; row < 5; row++) for (let col = 0; col < 8; col++) {
-      const block = new THREE.Mesh(new THREE.BoxGeometry(2.05, .8, 1.15), new THREE.MeshStandardMaterial({ color: colors[row], emissive: colors[row], emissiveIntensity: .18 }));
-      block.position.set((col - 3.5) * 2.35, .25, -10.5 + row * 1.5); block.castShadow = true; block.userData.active = true; scene.add(block); blocks.push(block);
-    }
-    const keys = new Set(); let velocity = new THREE.Vector3(0, 0, 0), launched = false, score = 0, lives = 3, ended = false;
-    const status = document.getElementById('status');
-    function updateStatus(message = launched ? 'Ball in play' : 'Press Space to launch') { status.textContent = `Score: ${score} | Lives: ${lives} | ${message}`; }
-    function placeBall() { launched = false; velocity.set(0, 0, 0); ball.position.set(paddle.position.x, .55, 10.5); }
-    function reset() { score = 0; lives = 3; ended = false; paddle.position.x = 0; blocks.forEach(b => { b.visible = true; b.userData.active = true; }); placeBall(); updateStatus(); }
-    addEventListener('keydown', e => { keys.add(e.key.toLowerCase()); if (e.key === ' ') { e.preventDefault(); if (!launched && !ended) { launched = true; velocity.set((Math.random() - .5) * .12, 0, -.22); } } if (e.key.toLowerCase() === 'r') reset(); });
-    addEventListener('keyup', e => keys.delete(e.key.toLowerCase())); reset();
-    function animate() {
-      requestAnimationFrame(animate);
-      if (!ended) {
-        if (keys.has('arrowleft') || keys.has('a')) paddle.position.x -= .18;
-        if (keys.has('arrowright') || keys.has('d')) paddle.position.x += .18;
-        paddle.position.x = THREE.MathUtils.clamp(paddle.position.x, -8, 8);
-        if (!launched) ball.position.x += (paddle.position.x - ball.position.x) * .4;
-        else {
-          ball.position.add(velocity);
-          if (Math.abs(ball.position.x) > 9.55) { velocity.x *= -1; ball.position.x = THREE.MathUtils.clamp(ball.position.x, -9.55, 9.55); }
-          if (ball.position.z < -14.4) velocity.z = Math.abs(velocity.z);
-          if (ball.position.z > 10.6 && ball.position.z < 12.3 && Math.abs(ball.position.x - paddle.position.x) < 2.35 && velocity.z > 0) {
-            velocity.z = -Math.abs(velocity.z) * 1.02; velocity.x += (ball.position.x - paddle.position.x) * .035;
-          }
-          blocks.forEach(block => { if (block.userData.active && Math.abs(ball.position.x - block.position.x) < 1.5 && Math.abs(ball.position.z - block.position.z) < .95) { block.userData.active = false; block.visible = false; velocity.z *= -1; score += 10; } });
-          if (ball.position.z > 15) { lives--; if (!lives) { ended = true; updateStatus('Game over — press R'); } else { placeBall(); updateStatus('Ball lost — press Space'); } }
-          if (blocks.every(b => !b.userData.active)) { ended = true; launched = false; updateStatus('You cleared the board! Press R'); }
-        }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D Breakout</title>
+    <style>
+      * {
+        box-sizing: border-box;
       }
-      renderer.render(scene, camera);
-    }
-    addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); }); animate();
-  </script>
-</body>
+      body {
+        margin: 0;
+        overflow: hidden;
+        font-family: Arial, sans-serif;
+        color: #fff;
+        background: #070b18;
+      }
+      #game {
+        position: fixed;
+        inset: 0;
+      }
+      .hud {
+        position: fixed;
+        z-index: 2;
+        top: 16px;
+        left: 16px;
+        width: min(390px, calc(100vw - 32px));
+        padding: 15px 18px;
+        border: 1px solid #6c8cff55;
+        border-radius: 14px;
+        background: #081022cc;
+        backdrop-filter: blur(8px);
+      }
+      h1 {
+        margin: 0 0 7px;
+        font-size: 24px;
+      }
+      p {
+        margin: 6px 0;
+        color: #cbd7ff;
+        line-height: 1.35;
+      }
+      #status {
+        color: #fff;
+        font-weight: bold;
+      }
+      a {
+        color: #8fbdff;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <section class="hud">
+      <h1>3D Breakout</h1>
+      <p>Move: ← → or A D &nbsp; Launch: Space &nbsp; Reset: R</p>
+      <p>Break every neon block without losing all three balls.</p>
+      <p id="status"></p>
+      <p><a href="/index.html">← Back to games</a></p>
+    </section>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script>
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x070b18);
+      scene.fog = new THREE.Fog(0x070b18, 28, 52);
+      const camera = new THREE.PerspectiveCamera(
+        52,
+        innerWidth / innerHeight,
+        0.1,
+        100,
+      );
+      camera.position.set(0, 18, 20);
+      camera.lookAt(0, 0, -5);
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      renderer.setSize(innerWidth, innerHeight);
+      renderer.shadowMap.enabled = true;
+      document.getElementById("game").appendChild(renderer.domElement);
+      scene.add(new THREE.HemisphereLight(0xaac8ff, 0x141025, 1.5));
+      const light = new THREE.DirectionalLight(0xffffff, 2);
+      light.position.set(-6, 15, 8);
+      light.castShadow = true;
+      scene.add(light);
+      const board = new THREE.Mesh(
+        new THREE.BoxGeometry(20, 0.5, 30),
+        new THREE.MeshStandardMaterial({
+          color: 0x101a36,
+          roughness: 0.55,
+          metalness: 0.25,
+        }),
+      );
+      board.position.y = -0.5;
+      board.receiveShadow = true;
+      scene.add(board);
+      const grid = new THREE.GridHelper(30, 30, 0x3758a0, 0x182348);
+      grid.position.y = -0.23;
+      scene.add(grid);
+      const wallMat = new THREE.MeshStandardMaterial({
+        color: 0x334b88,
+        metalness: 0.5,
+      });
+      [-10.25, 10.25].forEach((x) => {
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1, 30), wallMat);
+        wall.position.set(x, 0, 0);
+        scene.add(wall);
+      });
+      const paddle = new THREE.Mesh(
+        new THREE.BoxGeometry(4, 0.8, 1.1),
+        new THREE.MeshStandardMaterial({ color: 0x5be7ff, emissive: 0x0c5060 }),
+      );
+      paddle.position.set(0, 0.25, 9.5);
+      paddle.castShadow = true;
+      scene.add(paddle);
+      const ball = new THREE.Mesh(
+        new THREE.SphereGeometry(0.42, 24, 16),
+        new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x7777ff }),
+      );
+      ball.castShadow = true;
+      scene.add(ball);
+      const blocks = [],
+        colors = [0xff477e, 0xff9f43, 0xffdd59, 0x48dbfb, 0x9b6bff];
+      for (let row = 0; row < 5; row++)
+        for (let col = 0; col < 8; col++) {
+          const block = new THREE.Mesh(
+            new THREE.BoxGeometry(2.05, 0.8, 1.15),
+            new THREE.MeshStandardMaterial({
+              color: colors[row],
+              emissive: colors[row],
+              emissiveIntensity: 0.18,
+            }),
+          );
+          block.position.set((col - 3.5) * 2.35, 0.25, -10.5 + row * 1.5);
+          block.castShadow = true;
+          block.userData.active = true;
+          scene.add(block);
+          blocks.push(block);
+        }
+      const keys = new Set();
+      let velocity = new THREE.Vector3(0, 0, 0),
+        launched = false,
+        score = 0,
+        lives = 3,
+        ended = false;
+      const status = document.getElementById("status");
+      function updateStatus(
+        message = launched ? "Ball in play" : "Press Space to launch",
+      ) {
+        status.textContent = `Score: ${score} | Lives: ${lives} | ${message}`;
+      }
+      function placeBall() {
+        launched = false;
+        velocity.set(0, 0, 0);
+        ball.position.set(paddle.position.x, 0.55, 8.5);
+      }
+      function reset() {
+        score = 0;
+        lives = 3;
+        ended = false;
+        paddle.position.x = 0;
+        blocks.forEach((b) => {
+          b.visible = true;
+          b.userData.active = true;
+        });
+        placeBall();
+        updateStatus();
+      }
+      addEventListener("keydown", (e) => {
+        keys.add(e.key.toLowerCase());
+        if (e.key === " ") {
+          e.preventDefault();
+          if (!launched && !ended) {
+            launched = true;
+            velocity.set((Math.random() - 0.5) * 0.12, 0, -0.22);
+          }
+        }
+        if (e.key.toLowerCase() === "r") reset();
+      });
+      addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
+      reset();
+      function animate() {
+        requestAnimationFrame(animate);
+        if (!ended) {
+          if (keys.has("arrowleft") || keys.has("a")) paddle.position.x -= 0.18;
+          if (keys.has("arrowright") || keys.has("d"))
+            paddle.position.x += 0.18;
+          paddle.position.x = THREE.MathUtils.clamp(paddle.position.x, -8, 8);
+          if (!launched)
+            ball.position.x += (paddle.position.x - ball.position.x) * 0.4;
+          else {
+            ball.position.add(velocity);
+            if (Math.abs(ball.position.x) > 9.55) {
+              velocity.x *= -1;
+              ball.position.x = THREE.MathUtils.clamp(
+                ball.position.x,
+                -9.55,
+                9.55,
+              );
+            }
+            if (ball.position.z < -14.4) velocity.z = Math.abs(velocity.z);
+            if (
+              ball.position.z > 8.6 &&
+              ball.position.z < 10.3 &&
+              Math.abs(ball.position.x - paddle.position.x) < 2.35 &&
+              velocity.z > 0
+            ) {
+              velocity.z = -Math.abs(velocity.z) * 1.02;
+              velocity.x += (ball.position.x - paddle.position.x) * 0.035;
+            }
+            blocks.forEach((block) => {
+              if (
+                block.userData.active &&
+                Math.abs(ball.position.x - block.position.x) < 1.5 &&
+                Math.abs(ball.position.z - block.position.z) < 0.95
+              ) {
+                block.userData.active = false;
+                block.visible = false;
+                velocity.z *= -1;
+                score += 10;
+              }
+            });
+            if (ball.position.z > 15) {
+              lives--;
+              if (!lives) {
+                ended = true;
+                updateStatus("Game over — press R");
+              } else {
+                placeBall();
+                updateStatus("Ball lost — press Space");
+              }
+            }
+            if (blocks.every((b) => !b.userData.active)) {
+              ended = true;
+              launched = false;
+              updateStatus("You cleared the board! Press R");
+            }
+          }
+        }
+        renderer.render(scene, camera);
+      }
+      addEventListener("resize", () => {
+        camera.aspect = innerWidth / innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth, innerHeight);
+      });
+      animate();
+    </script>
+  </body>
 </html>
