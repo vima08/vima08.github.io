@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <title>Skybound — 3D Platformer</title>
+    <style>
+      * { box-sizing: border-box; }
+      :root { color-scheme: dark; }
+      body { margin: 0; overflow: hidden; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #07111f; color: white; user-select: none; }
+      #game, canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+      .hud { position: fixed; z-index: 3; inset: 0; pointer-events: none; padding: clamp(14px, 2.4vw, 30px); }
+      .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+      .brand, .stats { border: 1px solid rgba(255,255,255,.16); background: rgba(7,17,31,.68); box-shadow: 0 12px 36px rgba(0,0,0,.24); backdrop-filter: blur(12px); }
+      .brand { border-radius: 18px; padding: 13px 17px; }
+      .brand h1 { font-size: clamp(18px, 2.5vw, 27px); line-height: 1; letter-spacing: -.04em; margin: 0 0 6px; }
+      .brand p { margin: 0; color: #a9bdd1; font-size: 12px; }
+      .stats { display: flex; border-radius: 16px; overflow: hidden; }
+      .stat { min-width: 76px; padding: 10px 14px; text-align: center; border-left: 1px solid rgba(255,255,255,.1); }
+      .stat:first-child { border-left: 0; }
+      .stat strong { display: block; font-size: 19px; }
+      .stat span { color: #9eb1c4; font-size: 9px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+      .controls { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); background: rgba(7,17,31,.64); border: 1px solid rgba(255,255,255,.12); color: #a9bdd1; padding: 9px 15px; border-radius: 999px; font-size: 11px; white-space: nowrap; backdrop-filter: blur(10px); }
+      .controls b { color: #fff; }
+      .back { pointer-events: auto; position: absolute; left: clamp(14px,2.4vw,30px); bottom: 20px; color: #b9d6e8; text-decoration: none; font-size: 12px; padding: 9px 13px; border-radius: 999px; background: rgba(7,17,31,.64); border: 1px solid rgba(255,255,255,.12); }
+      .message { pointer-events: auto; position: absolute; inset: 0; display: grid; place-items: center; background: rgba(3,8,18,.42); opacity: 0; visibility: hidden; transition: .25s; }
+      .message.show { opacity: 1; visibility: visible; }
+      .card { width: min(420px, calc(100vw - 32px)); padding: 30px; border-radius: 25px; text-align: center; background: rgba(8,20,35,.9); border: 1px solid rgba(255,255,255,.16); box-shadow: 0 25px 80px rgba(0,0,0,.45); backdrop-filter: blur(16px); }
+      .card .eyebrow { color: #56e8c4; font-size: 10px; font-weight: 900; letter-spacing: .2em; }
+      .card h2 { margin: 9px 0; font-size: 35px; letter-spacing: -.05em; }
+      .card p { color: #a9bdd1; margin: 0 0 20px; line-height: 1.5; }
+      .card button { border: 0; border-radius: 999px; padding: 12px 23px; background: #56e8c4; color: #07151d; font-weight: 900; cursor: pointer; }
+      .touch { display: none; position: fixed; z-index: 4; inset: auto 0 18px; padding: 0 18px; justify-content: space-between; pointer-events: none; }
+      .touch div { display: flex; gap: 10px; }
+      .touch button { pointer-events: auto; width: 62px; height: 62px; border: 1px solid rgba(255,255,255,.25); border-radius: 50%; background: rgba(7,17,31,.7); color: white; font-size: 20px; backdrop-filter: blur(9px); touch-action: none; }
+      .touch .jump { width: 72px; height: 72px; background: rgba(47,205,174,.74); font-size: 12px; font-weight: 900; }
+      @media (pointer: coarse), (max-width: 700px) { .touch { display: flex; } .controls { display: none; } .back { bottom: 100px; } .brand p { display: none; } .stat { min-width: 58px; padding: 9px; } }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <div class="hud">
+      <div class="topbar">
+        <section class="brand"><h1>SKYBOUND</h1><p>A tiny journey above the clouds</p></section>
+        <section class="stats"><div class="stat"><strong id="gems">0/7</strong><span>Shards</span></div><div class="stat"><strong id="lives">3</strong><span>Lives</span></div></section>
+      </div>
+      <a class="back" href="/index.html">← All games</a>
+      <div class="controls"><b>A D</b> / <b>← →</b> move &nbsp;·&nbsp; <b>Space</b> jump &nbsp;·&nbsp; <b>R</b> restart</div>
+      <div id="message" class="message"><div class="card"><span class="eyebrow">JOURNEY COMPLETE</span><h2>You made it!</h2><p id="result">The summit is yours.</p><button id="again">Play again</button></div></div>
+    </div>
+    <div class="touch"><div><button data-key="left">←</button><button data-key="right">→</button></div><button class="jump" data-key="jump">JUMP</button></div>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script>
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x91cbe0);
+      scene.fog = new THREE.Fog(0x91cbe0, 24, 78);
+      const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, .1, 140);
+      const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight);
+      renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
+      document.getElementById('game').appendChild(renderer.domElement);
+
+      scene.add(new THREE.HemisphereLight(0xdff7ff, 0x385e55, 2.2));
+      const sun = new THREE.DirectionalLight(0xfff4d6, 3.2); sun.position.set(-12, 24, 15); sun.castShadow = true;
+      sun.shadow.mapSize.set(2048, 2048); sun.shadow.camera.left = -24; sun.shadow.camera.right = 24; sun.shadow.camera.top = 24; sun.shadow.camera.bottom = -18; scene.add(sun);
+      const sunDisc = new THREE.Mesh(new THREE.SphereGeometry(3.5, 24, 12), new THREE.MeshBasicMaterial({ color: 0xffedb0 })); sunDisc.position.set(-24, 24, -45); scene.add(sunDisc);
+
+      const platforms = [], gems = [], enemies = [];
+      const rockMat = new THREE.MeshStandardMaterial({ color: 0x355e58, roughness: .9 });
+      const grassMat = new THREE.MeshStandardMaterial({ color: 0x68d09d, roughness: .78 });
+      function platform(x, y, w, h=1) {
+        const group = new THREE.Group();
+        const rock = new THREE.Mesh(new THREE.BoxGeometry(w, h, 4), rockMat); rock.position.y = -h/2; rock.castShadow = rock.receiveShadow = true; group.add(rock);
+        const grass = new THREE.Mesh(new THREE.BoxGeometry(w+.12, .22, 4.12), grassMat); grass.position.y = .05; grass.castShadow = grass.receiveShadow = true; group.add(grass);
+        group.position.set(x,y,0); scene.add(group); platforms.push({x,y,w,h});
+        for(let i=0;i<Math.floor(w/1.8);i++){ const blade=new THREE.Mesh(new THREE.ConeGeometry(.08,.35,4),grassMat); blade.position.set(x-w/2+.5+i*1.65,y+.28,(i%3-1)*1.35); blade.rotation.z=(i%2?.15:-.15); scene.add(blade); }
+      }
+      [[0,0,10,2],[8,2.1,4.8,1.4],[15,4.4,4,1.2],[22,2.1,5,1.5],[30,5.1,4.5,1.4],[38,7.2,6,1.6],[47,4.5,4.5,1.3],[55,7,4,1.2],[63,9.2,7,1.8],[73,6,5,1.5],[82,8.7,7,2]].forEach(p=>platform(...p));
+      const gemMat = new THREE.MeshStandardMaterial({ color:0x66fff0, emissive:0x20bfae, emissiveIntensity:1.2, metalness:.25, roughness:.15 });
+      [8,15,30,38,55,63,73].forEach((x,i)=>{ const p=platforms.find(q=>q.x===x); const m=new THREE.Mesh(new THREE.OctahedronGeometry(.48,0),gemMat); m.position.set(x,p.y+1.3,0); m.castShadow=true; scene.add(m); gems.push({mesh:m,taken:false}); });
+      const enemyMat = new THREE.MeshStandardMaterial({color:0xff637d,emissive:0x8c182c,emissiveIntensity:.45,roughness:.48});
+      [[22,2.75,2],[47,5.15,1.5],[73,6.65,1.7]].forEach(([x,y,range],i)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(1.15,1.15,1.15),enemyMat); m.position.set(x,y,0); m.castShadow=true; scene.add(m); enemies.push({mesh:m,origin:x,range,phase:i*2}); });
+      const flagPole=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,5,10),new THREE.MeshStandardMaterial({color:0xeef8ff,metalness:.6})); flagPole.position.set(84.5,11.25,0); scene.add(flagPole);
+      const flag=new THREE.Mesh(new THREE.PlaneGeometry(2.1,1.2),new THREE.MeshStandardMaterial({color:0xffda62,side:THREE.DoubleSide})); flag.position.set(85.5,12.9,0); scene.add(flag);
+      // layered distant islands and clouds
+      const cloudMat=new THREE.MeshStandardMaterial({color:0xffffff,transparent:true,opacity:.72,roughness:1});
+      for(let i=0;i<22;i++){ const g=new THREE.Group(); for(let j=0;j<3;j++){const c=new THREE.Mesh(new THREE.SphereGeometry(1.5+Math.random()*1.5,12,8),cloudMat);c.scale.y=.45;c.position.x=j*1.6;c.position.y=Math.random()*.5;g.add(c);}g.position.set(-15+i*6+(Math.random()*3),-3-Math.random()*4,-10-Math.random()*22);scene.add(g); }
+      const mountainMat=new THREE.MeshStandardMaterial({color:0x5b8f88,roughness:1});
+      for(let i=0;i<16;i++){const m=new THREE.Mesh(new THREE.ConeGeometry(4+Math.random()*5,10+Math.random()*9,6),mountainMat);m.position.set(-20+i*8,-5,-24-Math.random()*10);scene.add(m);}
+
+      const player = new THREE.Group();
+      const body=new THREE.Mesh(new THREE.BoxGeometry(1,1.25,1),new THREE.MeshStandardMaterial({color:0xf5fbff,roughness:.35})); body.castShadow=true; player.add(body);
+      const faceMat=new THREE.MeshBasicMaterial({color:0x102234}); [-.2,.2].forEach(x=>{const eye=new THREE.Mesh(new THREE.SphereGeometry(.055,8,6),faceMat);eye.position.set(x,.17,.505);player.add(eye);});
+      scene.add(player);
+      const keys={left:false,right:false,jump:false}; let velocity={x:0,y:0}, grounded=false, jumpLock=false, lives=3, collected=0, ended=false, invincible=0;
+      const start={x:-2,y:2};
+      function resetPlayer(){player.position.set(start.x,start.y,0);velocity.x=velocity.y=0;invincible=1.2;}
+      function restart(){lives=3;collected=0;ended=false;document.getElementById('message').classList.remove('show');gems.forEach(g=>{g.taken=false;g.mesh.visible=true});resetPlayer();updateHud();}
+      function updateHud(){document.getElementById('gems').textContent=`${collected}/${gems.length}`;document.getElementById('lives').textContent=lives;}
+      function loseLife(){if(invincible>0||ended)return;lives--;updateHud();if(lives<=0){lives=3;collected=0;gems.forEach(g=>{g.taken=false;g.mesh.visible=true});updateHud();}resetPlayer();}
+      addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(['arrowleft','a'].includes(k))keys.left=true;if(['arrowright','d'].includes(k))keys.right=true;if(k===' '||k==='arrowup'||k==='w'){keys.jump=true;e.preventDefault()}if(k==='r')restart();});
+      addEventListener('keyup',e=>{const k=e.key.toLowerCase();if(['arrowleft','a'].includes(k))keys.left=false;if(['arrowright','d'].includes(k))keys.right=false;if(k===' '||k==='arrowup'||k==='w')keys.jump=false;});
+      document.querySelectorAll('[data-key]').forEach(b=>{const k=b.dataset.key;const on=e=>{e.preventDefault();keys[k]=true};const off=e=>{e.preventDefault();keys[k]=false};b.addEventListener('pointerdown',on);b.addEventListener('pointerup',off);b.addEventListener('pointercancel',off);});
+      document.getElementById('again').onclick=restart; resetPlayer(); updateHud();
+      const clock=new THREE.Clock();
+      function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.035),t=clock.elapsedTime;if(!ended){
+        const desired=(keys.right?7:0)-(keys.left?7:0);velocity.x+=(desired-velocity.x)*Math.min(1,dt*12);if(!keys.left&&!keys.right)velocity.x*=Math.pow(.05,dt);
+        if(keys.jump&&grounded&&!jumpLock){velocity.y=10.8;grounded=false;jumpLock=true;}if(!keys.jump)jumpLock=false;velocity.y-=25*dt;
+        const oldY=player.position.y;player.position.x+=velocity.x*dt;player.position.y+=velocity.y*dt;grounded=false;
+        for(const p of platforms){const within=player.position.x+.48>p.x-p.w/2&&player.position.x-.48<p.x+p.w/2;const feet=player.position.y-.625,oldFeet=oldY-.625;if(within&&velocity.y<=0&&oldFeet>=p.y-.08&&feet<=p.y+.1){player.position.y=p.y+.625;velocity.y=0;grounded=true;}}
+        player.rotation.z+=( -velocity.x*.035-player.rotation.z)*dt*10;body.rotation.x=t*.4*(grounded?0:.3);
+        gems.forEach((g,i)=>{if(g.taken)return;g.mesh.rotation.y+=dt*2.5;g.mesh.position.y+=Math.sin(t*3+i)*.002;if(g.mesh.position.distanceTo(player.position)<1.25){g.taken=true;g.mesh.visible=false;collected++;updateHud();}});
+        enemies.forEach(e=>{e.mesh.position.x=e.origin+Math.sin(t*1.6+e.phase)*e.range;e.mesh.rotation.y+=dt*1.6;if(e.mesh.position.distanceTo(player.position)<1.05)loseLife();});
+        if(player.position.y < -10)loseLife();if(invincible>0){invincible-=dt;player.visible=Math.floor(invincible*12)%2===0;}else player.visible=true;
+        if(player.position.x>81.5){ended=true;document.getElementById('result').textContent=collected===gems.length?'Perfect run — every sky shard collected!':`You found ${collected} of ${gems.length} sky shards.`;document.getElementById('message').classList.add('show');}
+      }
+      const targetX=player.position.x+4;camera.position.x+=(targetX-camera.position.x)*Math.min(1,dt*3.5);camera.position.y+=(player.position.y+5-camera.position.y)*Math.min(1,dt*2.3);camera.position.z=14;camera.lookAt(camera.position.x+3,camera.position.y-1.8,0);
+      sun.position.x=camera.position.x-12;sun.target.position.set(camera.position.x,0,0);scene.add(sun.target);renderer.render(scene,camera);}
+      camera.position.set(3,7,14);animate();
+      addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+    </script>
+  </body>
+</html>
