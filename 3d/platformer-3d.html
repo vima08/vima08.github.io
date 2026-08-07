@@ -104,6 +104,10 @@
       function updateHud(){document.getElementById('gems').textContent=`${collected}/${gems.length}`;document.getElementById('lives').textContent=lives;}
       function loseLife(){if(invincible>0||ended)return;lives--;updateHud();if(lives<=0){lives=3;collected=0;gems.forEach(g=>{g.taken=false;g.mesh.visible=true});updateHud();}resetPlayer();}
       function shoot(){if(ended||shootCooldown>0)return;const mesh=new THREE.Mesh(bulletGeometry,bulletMaterial);mesh.position.set(player.position.x+facing*.7,player.position.y+.05,0);scene.add(mesh);bullets.push({mesh,vx:facing*18});shootCooldown=.18;}
+      function bulletHitsPlatform(fromX,toX,y){
+        const radius=.13,travelMin=Math.min(fromX,toX),travelMax=Math.max(fromX,toX);
+        return platforms.some(p=>y+radius>p.y-p.h&&y-radius<p.y+.16&&travelMax>p.x-p.w/2-radius&&travelMin<p.x+p.w/2+radius);
+      }
       addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(['arrowleft','a'].includes(k))keys.left=true;if(['arrowright','d'].includes(k))keys.right=true;if(k===' '||k==='arrowup'||k==='w'){keys.jump=true;e.preventDefault()}if(k==='control'&&!e.repeat){shoot();e.preventDefault()}if(k==='r')restart();});
       addEventListener('keyup',e=>{const k=e.key.toLowerCase();if(['arrowleft','a'].includes(k))keys.left=false;if(['arrowright','d'].includes(k))keys.right=false;if(k===' '||k==='arrowup'||k==='w')keys.jump=false;});
       document.querySelectorAll('[data-key]').forEach(b=>{const k=b.dataset.key;const on=e=>{e.preventDefault();keys[k]=true};const off=e=>{e.preventDefault();keys[k]=false};b.addEventListener('pointerdown',on);b.addEventListener('pointerup',off);b.addEventListener('pointercancel',off);});
@@ -112,16 +116,16 @@
       const clock=new THREE.Clock();
       function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.035),t=clock.elapsedTime;if(!ended){
         const desired=(keys.right?7:0)-(keys.left?7:0);if(desired)facing=Math.sign(desired);velocity.x+=(desired-velocity.x)*Math.min(1,dt*12);if(!keys.left&&!keys.right)velocity.x*=Math.pow(.05,dt);
-        if(keys.jump&&grounded&&!jumpLock){velocity.y=10.8;grounded=false;jumpLock=true;}if(!keys.jump)jumpLock=false;velocity.y-=25*dt;
+        if(keys.jump&&grounded&&!jumpLock){velocity.y=12.3;grounded=false;jumpLock=true;}if(!keys.jump)jumpLock=false;velocity.y-=25*dt;
         const halfWidth=.5,halfHeight=.625;
         player.position.x+=velocity.x*dt;
-        for(const p of platforms){const verticalOverlap=player.position.y+halfHeight>p.y-p.h&&player.position.y-halfHeight<p.y+.16;if(verticalOverlap&&player.position.x+halfWidth>p.x-p.w/2&&player.position.x-halfWidth<p.x+p.w/2){player.position.x=velocity.x>0?p.x-p.w/2-halfWidth:p.x+p.w/2+halfWidth;velocity.x=0;}}
+        for(const p of platforms){const top=p.y+.16,verticalOverlap=player.position.y+halfHeight>p.y-p.h&&player.position.y-halfHeight<top;const clearsTopThisFrame=velocity.y>0&&player.position.y+velocity.y*dt-halfHeight>=top;if(verticalOverlap&&!clearsTopThisFrame&&player.position.x+halfWidth>p.x-p.w/2&&player.position.x-halfWidth<p.x+p.w/2){player.position.x=velocity.x>0?p.x-p.w/2-halfWidth:p.x+p.w/2+halfWidth;velocity.x=0;}}
         const oldY=player.position.y;player.position.y+=velocity.y*dt;grounded=false;
         for(const p of platforms){const horizontalOverlap=player.position.x+halfWidth>p.x-p.w/2&&player.position.x-halfWidth<p.x+p.w/2;if(!horizontalOverlap)continue;const top=p.y+.16,bottom=p.y-p.h;const oldTop=oldY+halfHeight,oldBottom=oldY-halfHeight;const newTop=player.position.y+halfHeight,newBottom=player.position.y-halfHeight;const fallStep=Math.max(.08,-velocity.y*dt+.02);if(velocity.y<=0&&oldBottom>=top-fallStep&&newBottom<=top){player.position.y=top+halfHeight;velocity.y=0;grounded=true;}else if(velocity.y>0&&oldTop<=bottom+.08&&newTop>=bottom){player.position.y=bottom-halfHeight;velocity.y=0;}}
         player.rotation.z+=( -velocity.x*.035-player.rotation.z)*dt*10;body.rotation.x=0;
         gems.forEach((g,i)=>{if(g.taken)return;g.mesh.rotation.y+=dt*2.5;g.mesh.position.y+=Math.sin(t*3+i)*.002;if(g.mesh.position.distanceTo(player.position)<1.25){g.taken=true;g.mesh.visible=false;collected++;updateHud();}});
         shootCooldown=Math.max(0,shootCooldown-dt);
-        for(let i=bullets.length-1;i>=0;i--){const b=bullets[i];b.mesh.position.x+=b.vx*dt;let hit=false;for(const e of enemies){if(e.active&&b.mesh.position.distanceTo(e.mesh.position)<.78){e.active=false;e.mesh.visible=false;hit=true;break;}}if(hit||Math.abs(b.mesh.position.x-player.position.x)>28){scene.remove(b.mesh);bullets.splice(i,1);}}
+        for(let i=bullets.length-1;i>=0;i--){const b=bullets[i],oldX=b.mesh.position.x,newX=oldX+b.vx*dt;b.mesh.position.x=newX;let hit=bulletHitsPlatform(oldX,newX,b.mesh.position.y);if(!hit){for(const e of enemies){if(e.active&&b.mesh.position.distanceTo(e.mesh.position)<.78){e.active=false;e.mesh.visible=false;hit=true;break;}}}if(hit||Math.abs(b.mesh.position.x-player.position.x)>28){scene.remove(b.mesh);bullets.splice(i,1);}}
         enemies.forEach(e=>{if(!e.active)return;e.mesh.position.x=e.origin+Math.sin(t*1.6+e.phase)*e.range;e.mesh.rotation.y+=dt*1.6;if(e.mesh.position.distanceTo(player.position)<1.05)loseLife();});
         if(player.position.y < -10)loseLife();if(invincible>0){invincible-=dt;player.visible=Math.floor(invincible*12)%2===0;}else player.visible=true;
         if(player.position.x>81.5){ended=true;document.getElementById('result').textContent=collected===gems.length?'Perfect run — every sky shard collected!':`You found ${collected} of ${gems.length} sky shards.`;document.getElementById('message').classList.add('show');}
