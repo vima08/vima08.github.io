@@ -42,7 +42,10 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
 const SHOOT_COOLDOWN = 1700; // мс
+const THROW_DURATION = 520; // мс
+const STONE_RELEASE_AT = 0.46;
 let lastShotTime = 0;
+let throwAnimation = null;
 
 const GRAVITY = 0.4;
 let gameOver = false;
@@ -92,12 +95,18 @@ canvas.addEventListener("click", (e) => {
 
     const power = 0.08;
 
-    stones.push({
-        x: archer.x,
-        y: archer.y,
-        vx: dx * power,
-        vy: dy * power
-    });
+    // Сначала хоббит замахивается, а камень вылетает из руки
+    // в середине анимации броска.
+    throwAnimation = {
+        startedAt: now,
+        released: false,
+        stone: {
+            x: archer.x + 35,
+            y: archer.y - 25,
+            vx: dx * power,
+            vy: dy * power
+        }
+    };
 });
 
 // Обновление
@@ -105,6 +114,20 @@ function update() {
     if (gameOver || youWon) return;
 
     if (goblinsCount == 0) youWon = true;
+
+    // Анимация броска и момент, когда камень покидает руку.
+    if (throwAnimation) {
+        const progress = (Date.now() - throwAnimation.startedAt) / THROW_DURATION;
+
+        if (!throwAnimation.released && progress >= STONE_RELEASE_AT) {
+            stones.push(throwAnimation.stone);
+            throwAnimation.released = true;
+        }
+
+        if (progress >= 1) {
+            throwAnimation = null;
+        }
+    }
 
     // Камни
     for (let s of stones) {
@@ -163,10 +186,38 @@ function draw() {
     ctx.fillStyle = "green"; //"#555";
     ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
 
-    // Лучник
-    ctx.fillStyle = "white";
-	ctx.drawImage(hobbitImg, archer.x - 10, archer.y - 15, 60, 60);
-    //ctx.fillRect(archer.x - 10, archer.y - 30, 20, 60);
+    // Хоббит: замах, бросок и возврат в исходную стойку.
+    let throwProgress = 0;
+    if (throwAnimation) {
+        throwProgress = Math.min((Date.now() - throwAnimation.startedAt) / THROW_DURATION, 1);
+    }
+
+    const windUp = throwProgress < STONE_RELEASE_AT
+        ? throwProgress / STONE_RELEASE_AT
+        : Math.max(0, 1 - (throwProgress - STONE_RELEASE_AT) / (1 - STONE_RELEASE_AT));
+    const releaseKick = throwProgress >= STONE_RELEASE_AT
+        ? Math.sin((throwProgress - STONE_RELEASE_AT) / (1 - STONE_RELEASE_AT) * Math.PI)
+        : 0;
+    const hobbitAngle = -0.18 * windUp + 0.32 * releaseKick;
+    const hobbitOffsetX = 5 * releaseKick - 3 * windUp;
+    const hobbitOffsetY = 3 * Math.sin(throwProgress * Math.PI);
+
+    ctx.save();
+    ctx.translate(archer.x + 20 + hobbitOffsetX, archer.y + 15 + hobbitOffsetY);
+    ctx.rotate(hobbitAngle);
+    ctx.drawImage(hobbitImg, -30, -30, 60, 60);
+    ctx.restore();
+
+    // Во время замаха камень виден в поднятой руке.
+    if (throwAnimation && !throwAnimation.released) {
+        const handAngle = -1.2 - windUp * 1.25;
+        const handX = archer.x + 25 + Math.cos(handAngle) * 24;
+        const handY = archer.y - 5 + Math.sin(handAngle) * 24;
+        ctx.beginPath();
+        ctx.fillStyle = "#4b3621";
+        ctx.arc(handX, handY, 5, 0, Math.PI * 2);
+        ctx.fill();
+    }
 
     // Индикатор кулдауна
 	const now = Date.now();
@@ -179,10 +230,12 @@ function draw() {
 	ctx.fillStyle = "#00aaff";
 	ctx.fillRect(archer.x, archer.y - 35, 40 * ratio, 6);
 
-    // Стрелы
-    ctx.fillStyle = "brown";
+    // Камни
+    ctx.fillStyle = "#4b3621";
     for (let a of stones) {
-        ctx.fillRect(a.x, a.y, 4, 4);
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, 4, 0, Math.PI * 2);
+        ctx.fill();
     }
 
     // Гоблины
