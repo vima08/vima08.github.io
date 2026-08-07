@@ -34,6 +34,7 @@
       .touch div { display: flex; gap: 10px; }
       .touch button { pointer-events: auto; width: 62px; height: 62px; border: 1px solid rgba(255,255,255,.25); border-radius: 50%; background: rgba(7,17,31,.7); color: white; font-size: 20px; backdrop-filter: blur(9px); touch-action: none; }
       .touch .jump { width: 72px; height: 72px; background: rgba(47,205,174,.74); font-size: 12px; font-weight: 900; }
+      .touch .shoot { background: rgba(255,218,98,.78); color: #17202a; font-size: 11px; font-weight: 900; }
       @media (pointer: coarse), (max-width: 700px) { .touch { display: flex; } .controls { display: none; } .back { bottom: 100px; } .brand p { display: none; } .stat { min-width: 58px; padding: 9px; } }
     </style>
   </head>
@@ -45,10 +46,10 @@
         <section class="stats"><div class="stat"><strong id="gems">0/7</strong><span>Shards</span></div><div class="stat"><strong id="lives">3</strong><span>Lives</span></div></section>
       </div>
       <a class="back" href="/index.html">← All games</a>
-      <div class="controls"><b>A D</b> / <b>← →</b> move &nbsp;·&nbsp; <b>Space</b> jump &nbsp;·&nbsp; <b>R</b> restart</div>
+      <div class="controls"><b>A D</b> / <b>← →</b> move &nbsp;·&nbsp; <b>Space</b> jump &nbsp;·&nbsp; <b>Ctrl</b> shoot &nbsp;·&nbsp; <b>R</b> restart</div>
       <div id="message" class="message"><div class="card"><span class="eyebrow">JOURNEY COMPLETE</span><h2>You made it!</h2><p id="result">The summit is yours.</p><button id="again">Play again</button></div></div>
     </div>
-    <div class="touch"><div><button data-key="left">←</button><button data-key="right">→</button></div><button class="jump" data-key="jump">JUMP</button></div>
+    <div class="touch"><div><button data-key="left">←</button><button data-key="right">→</button></div><div><button class="shoot" data-action="shoot">SHOOT</button><button class="jump" data-key="jump">JUMP</button></div></div>
     <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
     <script>
       const scene = new THREE.Scene();
@@ -66,7 +67,7 @@
       sun.shadow.mapSize.set(2048, 2048); sun.shadow.camera.left = -24; sun.shadow.camera.right = 24; sun.shadow.camera.top = 24; sun.shadow.camera.bottom = -18; scene.add(sun);
       const sunDisc = new THREE.Mesh(new THREE.SphereGeometry(3.5, 24, 12), new THREE.MeshBasicMaterial({ color: 0xffedb0 })); sunDisc.position.set(-24, 24, -45); scene.add(sunDisc);
 
-      const platforms = [], gems = [], enemies = [];
+      const platforms = [], gems = [], enemies = [], bullets = [];
       const rockMat = new THREE.MeshStandardMaterial({ color: 0x355e58, roughness: .9 });
       const grassMat = new THREE.MeshStandardMaterial({ color: 0x68d09d, roughness: .78 });
       function platform(x, y, w, h=1) {
@@ -80,7 +81,7 @@
       const gemMat = new THREE.MeshStandardMaterial({ color:0x66fff0, emissive:0x20bfae, emissiveIntensity:1.2, metalness:.25, roughness:.15 });
       [8,15,30,38,55,63,73].forEach((x,i)=>{ const p=platforms.find(q=>q.x===x); const m=new THREE.Mesh(new THREE.OctahedronGeometry(.48,0),gemMat); m.position.set(x,p.y+1.3,0); m.castShadow=true; scene.add(m); gems.push({mesh:m,taken:false}); });
       const enemyMat = new THREE.MeshStandardMaterial({color:0xff637d,emissive:0x8c182c,emissiveIntensity:.45,roughness:.48});
-      [[22,2.45,2],[47,4.45,1.5],[73,5.85,1.7]].forEach(([x,y,range],i)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(1.15,1.15,1.15),enemyMat); m.position.set(x,y,0); m.castShadow=true; scene.add(m); enemies.push({mesh:m,origin:x,range,phase:i*2}); });
+      [[22,2.45,2],[47,4.45,1.5],[73,5.85,1.7]].forEach(([x,y,range],i)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(1.15,1.15,1.15),enemyMat); m.position.set(x,y,0); m.castShadow=true; scene.add(m); enemies.push({mesh:m,origin:x,range,phase:i*2,active:true}); });
       const flagPole=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,5,10),new THREE.MeshStandardMaterial({color:0xeef8ff,metalness:.6})); flagPole.position.set(84.5,9.55,0); scene.add(flagPole);
       const flag=new THREE.Mesh(new THREE.PlaneGeometry(2.1,1.2),new THREE.MeshStandardMaterial({color:0xffda62,side:THREE.DoubleSide})); flag.position.set(85.5,11.2,0); scene.add(flag);
       // layered distant islands and clouds
@@ -93,28 +94,35 @@
       const body=new THREE.Mesh(new THREE.BoxGeometry(1,1.25,1),new THREE.MeshStandardMaterial({color:0xf5fbff,roughness:.35})); body.castShadow=true; player.add(body);
       const faceMat=new THREE.MeshBasicMaterial({color:0x102234}); [-.2,.2].forEach(x=>{const eye=new THREE.Mesh(new THREE.SphereGeometry(.055,8,6),faceMat);eye.position.set(x,.17,.505);body.add(eye);});
       scene.add(player);
-      const keys={left:false,right:false,jump:false}; let velocity={x:0,y:0}, grounded=false, jumpLock=false, lives=3, collected=0, ended=false, invincible=0;
+      const bulletGeometry=new THREE.SphereGeometry(.13,10,7);
+      const bulletMaterial=new THREE.MeshBasicMaterial({color:0xffe27a});
+      const keys={left:false,right:false,jump:false}; let velocity={x:0,y:0}, grounded=false, jumpLock=false, lives=3, collected=0, ended=false, invincible=0, facing=1, shootCooldown=0;
       const start={x:-2,y:2};
-      function resetPlayer(){player.position.set(start.x,start.y,0);velocity.x=velocity.y=0;invincible=1.2;}
-      function restart(){lives=3;collected=0;ended=false;document.getElementById('message').classList.remove('show');gems.forEach(g=>{g.taken=false;g.mesh.visible=true});resetPlayer();updateHud();}
+      function clearBullets(){bullets.forEach(b=>scene.remove(b.mesh));bullets.length=0;}
+      function resetPlayer(){player.position.set(start.x,start.y,0);velocity.x=velocity.y=0;body.rotation.x=0;invincible=1.2;clearBullets();}
+      function restart(){lives=3;collected=0;ended=false;document.getElementById('message').classList.remove('show');gems.forEach(g=>{g.taken=false;g.mesh.visible=true});enemies.forEach(e=>{e.active=true;e.mesh.visible=true});resetPlayer();updateHud();}
       function updateHud(){document.getElementById('gems').textContent=`${collected}/${gems.length}`;document.getElementById('lives').textContent=lives;}
       function loseLife(){if(invincible>0||ended)return;lives--;updateHud();if(lives<=0){lives=3;collected=0;gems.forEach(g=>{g.taken=false;g.mesh.visible=true});updateHud();}resetPlayer();}
-      addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(['arrowleft','a'].includes(k))keys.left=true;if(['arrowright','d'].includes(k))keys.right=true;if(k===' '||k==='arrowup'||k==='w'){keys.jump=true;e.preventDefault()}if(k==='r')restart();});
+      function shoot(){if(ended||shootCooldown>0)return;const mesh=new THREE.Mesh(bulletGeometry,bulletMaterial);mesh.position.set(player.position.x+facing*.7,player.position.y+.05,0);scene.add(mesh);bullets.push({mesh,vx:facing*18});shootCooldown=.18;}
+      addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(['arrowleft','a'].includes(k))keys.left=true;if(['arrowright','d'].includes(k))keys.right=true;if(k===' '||k==='arrowup'||k==='w'){keys.jump=true;e.preventDefault()}if(k==='control'&&!e.repeat){shoot();e.preventDefault()}if(k==='r')restart();});
       addEventListener('keyup',e=>{const k=e.key.toLowerCase();if(['arrowleft','a'].includes(k))keys.left=false;if(['arrowright','d'].includes(k))keys.right=false;if(k===' '||k==='arrowup'||k==='w')keys.jump=false;});
       document.querySelectorAll('[data-key]').forEach(b=>{const k=b.dataset.key;const on=e=>{e.preventDefault();keys[k]=true};const off=e=>{e.preventDefault();keys[k]=false};b.addEventListener('pointerdown',on);b.addEventListener('pointerup',off);b.addEventListener('pointercancel',off);});
+      document.querySelector('[data-action="shoot"]').addEventListener('pointerdown',e=>{e.preventDefault();shoot();});
       document.getElementById('again').onclick=restart; resetPlayer(); updateHud();
       const clock=new THREE.Clock();
       function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.035),t=clock.elapsedTime;if(!ended){
-        const desired=(keys.right?7:0)-(keys.left?7:0);velocity.x+=(desired-velocity.x)*Math.min(1,dt*12);if(!keys.left&&!keys.right)velocity.x*=Math.pow(.05,dt);
+        const desired=(keys.right?7:0)-(keys.left?7:0);if(desired)facing=Math.sign(desired);velocity.x+=(desired-velocity.x)*Math.min(1,dt*12);if(!keys.left&&!keys.right)velocity.x*=Math.pow(.05,dt);
         if(keys.jump&&grounded&&!jumpLock){velocity.y=10.8;grounded=false;jumpLock=true;}if(!keys.jump)jumpLock=false;velocity.y-=25*dt;
         const halfWidth=.5,halfHeight=.625;
         player.position.x+=velocity.x*dt;
         for(const p of platforms){const verticalOverlap=player.position.y+halfHeight>p.y-p.h&&player.position.y-halfHeight<p.y+.16;if(verticalOverlap&&player.position.x+halfWidth>p.x-p.w/2&&player.position.x-halfWidth<p.x+p.w/2){player.position.x=velocity.x>0?p.x-p.w/2-halfWidth:p.x+p.w/2+halfWidth;velocity.x=0;}}
         const oldY=player.position.y;player.position.y+=velocity.y*dt;grounded=false;
-        for(const p of platforms){const horizontalOverlap=player.position.x+halfWidth>p.x-p.w/2&&player.position.x-halfWidth<p.x+p.w/2;if(!horizontalOverlap)continue;const top=p.y+.16,bottom=p.y-p.h;const oldTop=oldY+halfHeight,oldBottom=oldY-halfHeight;const newTop=player.position.y+halfHeight,newBottom=player.position.y-halfHeight;if(velocity.y<=0&&oldBottom>=top-.08&&newBottom<=top){player.position.y=top+halfHeight;velocity.y=0;grounded=true;}else if(velocity.y>0&&oldTop<=bottom+.08&&newTop>=bottom){player.position.y=bottom-halfHeight;velocity.y=0;}}
-        player.rotation.z+=( -velocity.x*.035-player.rotation.z)*dt*10;body.rotation.x=t*.4*(grounded?0:.3);
+        for(const p of platforms){const horizontalOverlap=player.position.x+halfWidth>p.x-p.w/2&&player.position.x-halfWidth<p.x+p.w/2;if(!horizontalOverlap)continue;const top=p.y+.16,bottom=p.y-p.h;const oldTop=oldY+halfHeight,oldBottom=oldY-halfHeight;const newTop=player.position.y+halfHeight,newBottom=player.position.y-halfHeight;const fallStep=Math.max(.08,-velocity.y*dt+.02);if(velocity.y<=0&&oldBottom>=top-fallStep&&newBottom<=top){player.position.y=top+halfHeight;velocity.y=0;grounded=true;}else if(velocity.y>0&&oldTop<=bottom+.08&&newTop>=bottom){player.position.y=bottom-halfHeight;velocity.y=0;}}
+        player.rotation.z+=( -velocity.x*.035-player.rotation.z)*dt*10;body.rotation.x=0;
         gems.forEach((g,i)=>{if(g.taken)return;g.mesh.rotation.y+=dt*2.5;g.mesh.position.y+=Math.sin(t*3+i)*.002;if(g.mesh.position.distanceTo(player.position)<1.25){g.taken=true;g.mesh.visible=false;collected++;updateHud();}});
-        enemies.forEach(e=>{e.mesh.position.x=e.origin+Math.sin(t*1.6+e.phase)*e.range;e.mesh.rotation.y+=dt*1.6;if(e.mesh.position.distanceTo(player.position)<1.05)loseLife();});
+        shootCooldown=Math.max(0,shootCooldown-dt);
+        for(let i=bullets.length-1;i>=0;i--){const b=bullets[i];b.mesh.position.x+=b.vx*dt;let hit=false;for(const e of enemies){if(e.active&&b.mesh.position.distanceTo(e.mesh.position)<.78){e.active=false;e.mesh.visible=false;hit=true;break;}}if(hit||Math.abs(b.mesh.position.x-player.position.x)>28){scene.remove(b.mesh);bullets.splice(i,1);}}
+        enemies.forEach(e=>{if(!e.active)return;e.mesh.position.x=e.origin+Math.sin(t*1.6+e.phase)*e.range;e.mesh.rotation.y+=dt*1.6;if(e.mesh.position.distanceTo(player.position)<1.05)loseLife();});
         if(player.position.y < -10)loseLife();if(invincible>0){invincible-=dt;player.visible=Math.floor(invincible*12)%2===0;}else player.visible=true;
         if(player.position.x>81.5){ended=true;document.getElementById('result').textContent=collected===gems.length?'Perfect run — every sky shard collected!':`You found ${collected} of ${gems.length} sky shards.`;document.getElementById('message').classList.add('show');}
       }
