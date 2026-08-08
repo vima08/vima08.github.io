@@ -19,6 +19,7 @@ const expectedGames = [
   '/3d/bowling.html',
   '/3d/breakout-3d.html',
   '/3d/invaders-3d.html',
+  '/3d/asteroids-3d.html',
   '/3d/snake-3d.html',
   '/3d/platformer-3d.html',
 ];

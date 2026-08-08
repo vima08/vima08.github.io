@@ -54,6 +54,7 @@ test('3D pages declare Three.js and the FPS counter', async ({ request }) => {
     '/3d/bowling.html',
     '/3d/breakout-3d.html',
     '/3d/invaders-3d.html',
+    '/3d/asteroids-3d.html',
     '/3d/snake-3d.html',
     '/3d/platformer-3d.html',
   ]) {
