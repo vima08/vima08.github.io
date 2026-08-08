@@ -1,55 +1,537 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Asteroids: Deep Space 3D</title>
   <link rel="icon" href="/favicons/asteroids-3d.svg" type="image/svg+xml" />
   <style>
-    *{box-sizing:border-box}body{margin:0;overflow:hidden;background:#03050d;color:#eef5ff;font-family:Inter,ui-sans-serif,system-ui,sans-serif}#game{position:fixed;inset:0;background:radial-gradient(circle at 50% 48%,#14162d 0,#050711 58%,#02030a 100%)}canvas{display:block}.hud{position:fixed;inset:0;z-index:2;pointer-events:none}.brand{position:absolute;top:26px;left:30px}.eyebrow{color:#72e4ff;font-size:10px;font-weight:800;letter-spacing:.28em;text-transform:uppercase}.brand h1{margin:5px 0 0;font-size:clamp(21px,3vw,34px);font-weight:800;letter-spacing:-.04em;text-shadow:0 0 28px #557cff88}.brand h1 span{font-weight:300;color:#8290ad}.stats{position:absolute;top:28px;right:30px;display:flex;gap:8px}.stat{min-width:88px;padding:10px 14px;border:1px solid #8da8ff28;border-radius:10px;background:#080c1ba8;box-shadow:inset 0 1px #ffffff0d;backdrop-filter:blur(12px)}.stat label{display:block;color:#7785a6;font-size:9px;font-weight:700;letter-spacing:.18em}.stat b{display:block;margin-top:3px;font-size:18px;font-variant-numeric:tabular-nums}.stat b.cyan{color:#77eaff}.controls{position:absolute;left:30px;bottom:26px;color:#78839d;font-size:11px;letter-spacing:.08em}.key{display:inline-grid;min-width:23px;height:23px;margin:0 3px;place-items:center;border:1px solid #8ca1ca40;border-radius:5px;background:#11172bbb;color:#cbd7f0;font-weight:700}.back{position:absolute;right:30px;bottom:26px;pointer-events:auto;color:#8090b0;font-size:12px;text-decoration:none}.back:hover{color:#72e4ff}.vignette{position:absolute;inset:0;box-shadow:inset 0 0 140px #000b;pointer-events:none}.message{position:absolute;inset:0;display:grid;place-content:center;text-align:center;opacity:0;transform:scale(.95);transition:.3s}.message.show{opacity:1;transform:scale(1)}.message h2{margin:0;font-size:clamp(38px,7vw,78px);letter-spacing:-.06em;text-shadow:0 0 45px #667aff}.message p{color:#91a0bd;letter-spacing:.12em}.bar{position:absolute;left:50%;bottom:28px;width:min(300px,42vw);transform:translateX(-50%)}.bar header{display:flex;justify-content:space-between;margin-bottom:7px;color:#6f7d9c;font-size:9px;letter-spacing:.18em}.track{height:3px;background:#202843}.fill{width:100%;height:100%;background:linear-gradient(90deg,#55d8ff,#8a6cff);box-shadow:0 0 12px #62ceff;transition:width .2s}@media(max-width:650px){.brand{top:18px;left:18px}.stats{top:78px;left:18px;right:auto}.stat{min-width:75px;padding:8px}.controls{left:18px}.back{right:18px}}
+    * { box-sizing: border-box; }
+    :root { color-scheme: dark; }
+    body { margin: 0; overflow: hidden; color: #eef5ff; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #02030a; user-select: none; }
+    #game, canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+    #game { background: radial-gradient(circle at 50% 48%, #14162d 0, #050711 58%, #02030a 100%); }
+    .hud { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
+    .brand { position: absolute; top: clamp(18px, 2.5vw, 30px); left: clamp(18px, 2.5vw, 32px); }
+    .eyebrow { color: #72e4ff; font-size: 10px; font-weight: 900; letter-spacing: .28em; text-transform: uppercase; }
+    .brand h1 { margin: 5px 0 0; font-size: clamp(21px, 3vw, 34px); font-weight: 850; letter-spacing: -.045em; text-shadow: 0 0 28px rgba(85, 124, 255, .55); }
+    .brand h1 span { color: #8290ad; font-weight: 300; }
+    .stats { position: absolute; top: clamp(18px, 2.5vw, 30px); right: clamp(18px, 2.5vw, 32px); display: flex; gap: 8px; }
+    .stat { min-width: 88px; padding: 10px 14px; border: 1px solid rgba(141, 168, 255, .16); border-radius: 11px; background: rgba(8, 12, 27, .72); box-shadow: inset 0 1px rgba(255, 255, 255, .05), 0 16px 45px rgba(0, 0, 0, .22); backdrop-filter: blur(14px) saturate(125%); }
+    .stat label { display: block; color: #7785a6; font-size: 9px; font-weight: 800; letter-spacing: .18em; }
+    .stat b { display: block; margin-top: 3px; font-size: 18px; font-variant-numeric: tabular-nums; }
+    .stat b.cyan { color: #77eaff; }
+    .controls { position: absolute; left: clamp(18px, 2.5vw, 32px); bottom: 26px; color: #78839d; font-size: 11px; letter-spacing: .08em; }
+    .key { display: inline-grid; min-width: 23px; height: 23px; margin: 0 3px; place-items: center; border: 1px solid rgba(140, 161, 202, .25); border-radius: 5px; background: rgba(17, 23, 43, .75); color: #cbd7f0; font-weight: 800; box-shadow: inset 0 -2px rgba(0, 0, 0, .25); }
+    .back { position: absolute; right: clamp(18px, 2.5vw, 32px); bottom: 26px; pointer-events: auto; color: #8090b0; font-size: 12px; text-decoration: none; }
+    .back:hover { color: #72e4ff; }
+    .vignette { position: absolute; inset: 0; box-shadow: inset 0 0 150px rgba(0, 0, 0, .72); pointer-events: none; }
+    .message { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; opacity: 0; transform: scale(.95); transition: opacity .3s, transform .3s; }
+    .message.show { opacity: 1; transform: scale(1); }
+    .message h2 { margin: 0; font-size: clamp(38px, 7vw, 78px); letter-spacing: -.06em; text-shadow: 0 0 45px #667aff; }
+    .message p { color: #91a0bd; letter-spacing: .12em; }
+    .bar { position: absolute; left: 50%; bottom: 28px; width: min(300px, 42vw); transform: translateX(-50%); }
+    .bar header { display: flex; justify-content: space-between; margin-bottom: 7px; color: #6f7d9c; font-size: 9px; font-weight: 800; letter-spacing: .18em; }
+    .track { height: 4px; overflow: hidden; border-radius: 999px; background: #202843; }
+    .fill { width: 100%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #55d8ff, #8a6cff); box-shadow: 0 0 12px #62ceff; transition: width .12s linear; }
+    .damage { position: absolute; inset: 0; opacity: 0; background: radial-gradient(circle, transparent 18%, rgba(80, 118, 255, .5)); transition: opacity .16s; }
+    .damage.show { opacity: 1; }
+    @media (max-width: 680px) {
+      .stats { top: 78px; left: 18px; right: auto; }
+      .stat { min-width: 72px; padding: 8px; }
+      .controls { display: none; }
+      .bar { bottom: 55px; }
+    }
   </style>
 </head>
 <body>
   <div id="game"></div>
   <div class="hud">
     <div class="brand"><div class="eyebrow">Sector // A–07</div><h1>ASTEROIDS <span>DEEP SPACE</span></h1></div>
-    <div class="stats"><div class="stat"><label>SCORE</label><b id="score">000000</b></div><div class="stat"><label>WAVE</label><b id="wave" class="cyan">01</b></div><div class="stat"><label>HULL</label><b id="lives">◆ ◆ ◆</b></div></div>
+    <div class="stats">
+      <div class="stat"><label>SCORE</label><b id="score">000000</b></div>
+      <div class="stat"><label>WAVE</label><b id="wave" class="cyan">01</b></div>
+      <div class="stat"><label>HULL</label><b id="lives">◆ ◆ ◆</b></div>
+    </div>
     <div class="bar"><header><span>PLASMA DRIVE</span><span id="boostText">100%</span></header><div class="track"><div class="fill" id="boost"></div></div></div>
-    <div class="controls"><span class="key">W</span><span class="key">A</span><span class="key">D</span> PILOT &nbsp;&nbsp; <span class="key">SPACE</span> FIRE &nbsp;&nbsp; <span class="key">⇧</span> BOOST</div>
-    <a class="back" href="/index.html">← RETURN TO ARCADE</a><div class="message" id="message"><h2 id="messageTitle">WAVE 01</h2><p id="messageText">CLEAR THE SECTOR</p></div><div class="vignette"></div>
+    <div class="controls"><span class="key">W</span><span class="key">A</span><span class="key">D</span> PILOT &nbsp;&nbsp; <span class="key">SPACE</span> FIRE &nbsp;&nbsp; <span class="key">⇧</span> BOOST &nbsp;&nbsp; <span class="key">R</span> RESET</div>
+    <a class="back" href="/index.html">← RETURN TO ARCADE</a>
+    <div class="message" id="message"><h2 id="messageTitle">WAVE 01</h2><p id="messageText">CLEAR THE SECTOR</p></div>
+    <div class="damage" id="damage"></div>
+    <div class="vignette"></div>
   </div>
+
   <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
   <script>
-  (()=>{
-    const scene=new THREE.Scene(), camera=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.1,180);
-    camera.position.set(0,28,22);camera.lookAt(0,0,0);
-    const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;document.querySelector('#game').appendChild(renderer.domElement);
-    scene.add(new THREE.HemisphereLight(0x8ca9ff,0x080916,1.5));const sun=new THREE.DirectionalLight(0xa9c8ff,3);sun.position.set(-8,18,10);scene.add(sun);const rim=new THREE.PointLight(0x6d44ff,30,45);rim.position.set(10,5,-12);scene.add(rim);
-    const field=new THREE.BufferGeometry(),stars=[];for(let i=0;i<900;i++)stars.push((Math.random()-.5)*100,(Math.random()-.5)*10-4,(Math.random()-.5)*100);field.setAttribute('position',new THREE.Float32BufferAttribute(stars,3));scene.add(new THREE.Points(field,new THREE.PointsMaterial({color:0xaac7ff,size:.075,transparent:true,opacity:.75})));
-    const dust=[];for(let i=0;i<45;i++){const m=new THREE.Mesh(new THREE.IcosahedronGeometry(.02+Math.random()*.035,0),new THREE.MeshBasicMaterial({color:0x668cff}));m.position.set((Math.random()-.5)*42,-.3,(Math.random()-.5)*34);scene.add(m);dust.push(m)}
-    const ship=new THREE.Group(),metal=new THREE.MeshStandardMaterial({color:0x9aa9c5,metalness:.88,roughness:.26}),dark=new THREE.MeshStandardMaterial({color:0x11182a,metalness:.75,roughness:.3}),glow=new THREE.MeshBasicMaterial({color:0x66dfff});
-    const hull=new THREE.Mesh(new THREE.ConeGeometry(.72,2.8,5),metal);hull.rotation.x=Math.PI/2;const cockpit=new THREE.Mesh(new THREE.SphereGeometry(.39,16,8),dark);cockpit.scale.set(1,.55,1.35);cockpit.position.set(0,.32,-.18);const wingGeo=new THREE.BoxGeometry(2.5,.12,.75);const wings=new THREE.Mesh(wingGeo,metal);wings.position.z=.45;const engine=new THREE.Mesh(new THREE.ConeGeometry(.27,1.3,12,1,true),glow);engine.rotation.x=-Math.PI/2;engine.position.z=1.9;ship.add(hull,cockpit,wings,engine);scene.add(ship);
-    const keys=new Set(),asteroids=[],shots=[],particles=[];let velocity=new THREE.Vector2(),score=0,wave=1,lives=3,boost=100,invulnerable=0,ended=false,lastShot=0;
-    const bounds={x:18,z:14};
-    function irregularGeometry(size,seed){const g=new THREE.IcosahedronGeometry(size,1),p=g.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),n=1+Math.sin(i*12.9898+seed*7.1)*.16+Math.cos(i*4.31+seed)*.09;p.setXYZ(i,x*n,y*n,z*n)}g.computeVertexNormals();return g}
-    function makeAsteroid(size,x,z){const mat=new THREE.MeshStandardMaterial({color:size>1.2?0x3a4054:0x454b61,roughness:.91,metalness:.08,flatShading:true});const a=new THREE.Mesh(irregularGeometry(size,Math.random()*50),mat);a.position.set(x,(Math.random()-.5)*.7,z);a.rotation.set(Math.random()*6,Math.random()*6,Math.random()*6);const angle=Math.random()*Math.PI*2,speed=(.018+Math.random()*.022)*(2.2/size);a.userData={size,vx:Math.cos(angle)*speed,vz:Math.sin(angle)*speed,spin:(Math.random()-.5)*.018,radius:size*.82};scene.add(a);asteroids.push(a)}
-    function safeSpawn(size){let x,z;do{x=(Math.random()-.5)*bounds.x*2;z=(Math.random()-.5)*bounds.z*2}while(Math.hypot(x-ship.position.x,z-ship.position.z)<7);makeAsteroid(size,x,z)}
-    function burst(pos,color=0x78ddff,count=14){for(let i=0;i<count;i++){const p=new THREE.Mesh(new THREE.IcosahedronGeometry(.04+Math.random()*.09,0),new THREE.MeshBasicMaterial({color,transparent:true}));p.position.copy(pos);p.userData={v:new THREE.Vector3((Math.random()-.5)*.18,Math.random()*.08,(Math.random()-.5)*.18),life:1};scene.add(p);particles.push(p)}}
-    function wrap(o){if(o.position.x>bounds.x)o.position.x=-bounds.x;if(o.position.x<-bounds.x)o.position.x=bounds.x;if(o.position.z>bounds.z)o.position.z=-bounds.z;if(o.position.z<-bounds.z)o.position.z=bounds.z}
-    function spawnWave(){for(let i=0;i<3+wave;i++)safeSpawn(1.5+Math.random()*.8);flash(`WAVE ${String(wave).padStart(2,'0')}`,'CLEAR THE SECTOR')}
-    function flash(title,text,stay=false){messageTitle.textContent=title;messageText.textContent=text;message.classList.add('show');if(!stay)setTimeout(()=>message.classList.remove('show'),1100)}
-    function shoot(t){if(t-lastShot<170||ended)return;lastShot=t;const dir=new THREE.Vector2(-Math.sin(ship.rotation.y),-Math.cos(ship.rotation.y)),s=new THREE.Mesh(new THREE.CapsuleGeometry(.045,.6,3,6),new THREE.MeshBasicMaterial({color:0x7fe9ff}));s.rotation.x=Math.PI/2;s.rotation.z=-ship.rotation.y;s.position.copy(ship.position);s.position.x+=dir.x;s.position.z+=dir.y;s.userData={vx:dir.x*.42+velocity.x,vz:dir.y*.42+velocity.y,life:75};scene.add(s);shots.push(s)}
-    function hitAsteroid(a,index){const size=a.userData.size;score+=size>1.2?100:250;burst(a.position,0xa9b5d1,size>1.2?16:8);if(size>1.2)for(let j=0;j<2;j++)makeAsteroid(size*.53,a.position.x+(Math.random()-.5),a.position.z+(Math.random()-.5));scene.remove(a);asteroids.splice(index,1)}
-    function reset(){asteroids.concat(shots,particles).forEach(o=>scene.remove(o));asteroids.length=shots.length=particles.length=0;score=0;wave=1;lives=3;boost=100;ended=false;invulnerable=100;velocity.set(0,0);ship.position.set(0,0,0);ship.rotation.y=0;message.classList.remove('show');spawnWave()}
-    addEventListener('keydown',e=>{keys.add(e.key.toLowerCase());if(e.code==='Space'){e.preventDefault();shoot(performance.now())}if(e.key.toLowerCase()==='r'&&ended)reset()});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
-    function animate(t){requestAnimationFrame(animate);if(!ended){const turn=(keys.has('a')||keys.has('arrowleft')?1:0)-(keys.has('d')||keys.has('arrowright')?1:0);ship.rotation.y+=turn*.055;const thrust=keys.has('w')||keys.has('arrowup'),boosting=thrust&&keys.has('shift')&&boost>0,mult=boosting?2.15:1;if(thrust){velocity.x-=Math.sin(ship.rotation.y)*.006*mult;velocity.y-=Math.cos(ship.rotation.y)*.006*mult;engine.scale.z=1.1+Math.random()*(boosting?1.8:.7);if(boosting)boost-=.45}else engine.scale.z=.65;boost=Math.min(100,boost+.09);velocity.multiplyScalar(.992);velocity.clampLength(0,boosting?.24:.13);ship.position.x+=velocity.x;ship.position.z+=velocity.y;wrap(ship);ship.rotation.z=-turn*.18;ship.position.y=Math.sin(t*.004)*.08;if(keys.has(' '))shoot(t);if(invulnerable>0){invulnerable--;ship.visible=Math.floor(invulnerable/5)%2===0}else ship.visible=true;
-      asteroids.forEach(a=>{a.position.x+=a.userData.vx;a.position.z+=a.userData.vz;a.rotation.x+=a.userData.spin;a.rotation.y+=a.userData.spin*.7;wrap(a)});shots.forEach(s=>{s.position.x+=s.userData.vx;s.position.z+=s.userData.vz;s.userData.life--;wrap(s)});
-      for(let i=shots.length-1;i>=0;i--){let used=shots[i].userData.life<0;for(let j=asteroids.length-1;j>=0&&!used;j--)if(shots[i].position.distanceTo(asteroids[j].position)<asteroids[j].userData.radius){hitAsteroid(asteroids[j],j);used=true}if(used){scene.remove(shots[i]);shots.splice(i,1)}}
-      if(!invulnerable)for(const a of asteroids)if(ship.position.distanceTo(a.position)<a.userData.radius+.55){lives--;invulnerable=130;velocity.multiplyScalar(-1);burst(ship.position,0x65dcff,24);if(!lives){ended=true;ship.visible=false;flash('SHIP LOST',`SCORE ${String(score).padStart(6,'0')} · PRESS R TO RESTART`,true)}break}
-      if(!asteroids.length){wave++;spawnWave()}}
-      for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.position.add(p.userData.v);p.userData.life-=.025;p.scale.setScalar(p.userData.life);p.material.opacity=p.userData.life;if(p.userData.life<=0){scene.remove(p);particles.splice(i,1)}}dust.forEach(d=>{d.position.z+=.006;if(d.position.z>17)d.position.z=-17});scoreEl.textContent=String(score).padStart(6,'0');waveEl.textContent=String(wave).padStart(2,'0');livesEl.textContent='◆ '.repeat(lives).trim()||'—';boostEl.style.width=boost+'%';boostText.textContent=Math.round(boost)+'%';camera.position.x+=(ship.position.x*.08-camera.position.x)*.02;camera.lookAt(camera.position.x*.2,0,0);renderer.render(scene,camera)}
-    const scoreEl=document.querySelector('#score'),waveEl=document.querySelector('#wave'),livesEl=document.querySelector('#lives'),boostEl=document.querySelector('#boost'),boostText=document.querySelector('#boostText'),message=document.querySelector('#message'),messageTitle=document.querySelector('#messageTitle'),messageText=document.querySelector('#messageText');reset();animate(0);addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)})
-  })();
+    (() => {
+      const scoreEl = document.getElementById('score');
+      const waveEl = document.getElementById('wave');
+      const livesEl = document.getElementById('lives');
+      const boostEl = document.getElementById('boost');
+      const boostTextEl = document.getElementById('boostText');
+      const messageEl = document.getElementById('message');
+      const messageTitleEl = document.getElementById('messageTitle');
+      const messageTextEl = document.getElementById('messageText');
+      const damageEl = document.getElementById('damage');
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, .1, 180);
+      camera.position.set(0, 28, 22);
+      camera.lookAt(0, 0, 0);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      renderer.setSize(innerWidth, innerHeight);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.25;
+      document.getElementById('game').appendChild(renderer.domElement);
+
+      scene.add(new THREE.HemisphereLight(0x8ca9ff, 0x080916, 1.5));
+      const sun = new THREE.DirectionalLight(0xa9c8ff, 3);
+      sun.position.set(-8, 18, 10);
+      scene.add(sun);
+      const rim = new THREE.PointLight(0x6d44ff, 34, 48, 2);
+      rim.position.set(10, 5, -12);
+      scene.add(rim);
+
+      const starPositions = [];
+      const starColors = [];
+      for (let index = 0; index < 1100; index += 1) {
+        starPositions.push((Math.random() - .5) * 110, (Math.random() - .5) * 13 - 5, (Math.random() - .5) * 110);
+        const blue = .7 + Math.random() * .3;
+        starColors.push(blue * .65, blue * .75, blue);
+      }
+      const starGeometry = new THREE.BufferGeometry();
+      starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
+      starGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starColors, 3));
+      const starField = new THREE.Points(starGeometry, new THREE.PointsMaterial({ size: .075, vertexColors: true, transparent: true, opacity: .82 }));
+      scene.add(starField);
+
+      const planet = new THREE.Mesh(
+        new THREE.SphereGeometry(7.5, 40, 24),
+        new THREE.MeshStandardMaterial({ color: 0x141c48, emissive: 0x080b24, roughness: .85 }),
+      );
+      planet.position.set(-29, -9, -38);
+      scene.add(planet);
+      const planetRing = new THREE.Mesh(
+        new THREE.RingGeometry(9.2, 11.5, 64),
+        new THREE.MeshBasicMaterial({ color: 0x786cff, transparent: true, opacity: .18, side: THREE.DoubleSide }),
+      );
+      planetRing.position.copy(planet.position);
+      planetRing.rotation.set(Math.PI / 2.7, .2, -.2);
+      scene.add(planetRing);
+
+      const dust = [];
+      const dustGeometry = new THREE.IcosahedronGeometry(.035, 0);
+      const dustMaterial = new THREE.MeshBasicMaterial({ color: 0x668cff });
+      for (let index = 0; index < 55; index += 1) {
+        const mote = new THREE.Mesh(dustGeometry, dustMaterial);
+        mote.scale.setScalar(.7 + Math.random() * 1.5);
+        mote.position.set((Math.random() - .5) * 42, -.3, (Math.random() - .5) * 34);
+        scene.add(mote);
+        dust.push(mote);
+      }
+
+      const ship = new THREE.Group();
+      const metal = new THREE.MeshPhysicalMaterial({ color: 0x9aa9c5, metalness: .88, roughness: .22, clearcoat: .65 });
+      const dark = new THREE.MeshStandardMaterial({ color: 0x11182a, metalness: .75, roughness: .3 });
+      const glow = new THREE.MeshBasicMaterial({ color: 0x66dfff, transparent: true, opacity: .9 });
+      const hull = new THREE.Mesh(new THREE.ConeGeometry(.72, 2.8, 5), metal);
+      hull.rotation.x = Math.PI / 2;
+      const cockpit = new THREE.Mesh(new THREE.SphereGeometry(.39, 16, 8), dark);
+      cockpit.scale.set(1, .55, 1.35);
+      cockpit.position.set(0, .32, -.18);
+      const wings = new THREE.Mesh(new THREE.BoxGeometry(2.5, .12, .75), metal);
+      wings.position.z = .45;
+      const engine = new THREE.Mesh(new THREE.ConeGeometry(.27, 1.3, 12, 1, true), glow);
+      engine.rotation.x = -Math.PI / 2;
+      engine.position.z = 1.9;
+      hull.castShadow = wings.castShadow = true;
+      ship.add(hull, cockpit, wings, engine);
+      scene.add(ship);
+
+      const shield = new THREE.Mesh(
+        new THREE.SphereGeometry(1.35, 24, 14),
+        new THREE.MeshBasicMaterial({ color: 0x5ce6ff, wireframe: true, transparent: true, opacity: .22 }),
+      );
+      shield.scale.y = .45;
+      ship.add(shield);
+
+      const engineTrail = [];
+      for (let index = 0; index < 9; index += 1) {
+        const spark = new THREE.Mesh(
+          new THREE.IcosahedronGeometry(.1 - index * .006, 0),
+          new THREE.MeshBasicMaterial({ color: index < 4 ? 0x7de8ff : 0x7667ff, transparent: true, opacity: .45 * (1 - index / 10) }),
+        );
+        spark.visible = false;
+        scene.add(spark);
+        engineTrail.push(spark);
+      }
+
+      const keys = new Set();
+      const asteroids = [];
+      const shots = [];
+      const particles = [];
+      const velocity = new THREE.Vector2();
+      const clock = new THREE.Clock();
+      const bounds = { x: 18, z: 14 };
+      let score = 0;
+      let wave = 1;
+      let lives = 3;
+      let boost = 100;
+      let invulnerability = 0;
+      let ended = false;
+      let lastShot = -1;
+      let messageTimer = 0;
+      let cameraShake = 0;
+
+      function irregularGeometry(size, seed) {
+        const geometry = new THREE.IcosahedronGeometry(size, 1);
+        const positions = geometry.attributes.position;
+        for (let index = 0; index < positions.count; index += 1) {
+          const x = positions.getX(index);
+          const y = positions.getY(index);
+          const z = positions.getZ(index);
+          const noise = 1 + Math.sin(index * 12.9898 + seed * 7.1) * .16 + Math.cos(index * 4.31 + seed) * .09;
+          positions.setXYZ(index, x * noise, y * noise, z * noise);
+        }
+        geometry.computeVertexNormals();
+        return geometry;
+      }
+
+      function makeAsteroid(size, x, z) {
+        const material = new THREE.MeshStandardMaterial({
+          color: size > 1.2 ? 0x3a4054 : 0x4d536b,
+          roughness: .91,
+          metalness: .08,
+          flatShading: true,
+        });
+        const asteroid = new THREE.Mesh(irregularGeometry(size, Math.random() * 50), material);
+        asteroid.position.set(x, (Math.random() - .5) * .7, z);
+        asteroid.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+        const angle = Math.random() * Math.PI * 2;
+        const speed = (1.05 + Math.random() * 1.3) * (2.2 / size);
+        asteroid.userData = {
+          size,
+          velocityX: Math.cos(angle) * speed,
+          velocityZ: Math.sin(angle) * speed,
+          spin: (Math.random() - .5) * 1.05,
+          radius: size * .82,
+        };
+        scene.add(asteroid);
+        asteroids.push(asteroid);
+      }
+
+      function safeSpawn(size) {
+        let x;
+        let z;
+        do {
+          x = (Math.random() - .5) * bounds.x * 2;
+          z = (Math.random() - .5) * bounds.z * 2;
+        } while (Math.hypot(x - ship.position.x, z - ship.position.z) < 7);
+        makeAsteroid(size, x, z);
+      }
+
+      function burst(position, color = 0x78ddff, count = 14) {
+        for (let index = 0; index < count; index += 1) {
+          const particle = new THREE.Mesh(
+            new THREE.IcosahedronGeometry(.04 + Math.random() * .09, 0),
+            new THREE.MeshBasicMaterial({ color, transparent: true }),
+          );
+          particle.position.copy(position);
+          particle.userData = {
+            velocity: new THREE.Vector3((Math.random() - .5) * 10, Math.random() * 4, (Math.random() - .5) * 10),
+            life: .55 + Math.random() * .22,
+          };
+          scene.add(particle);
+          particles.push(particle);
+        }
+      }
+
+      function wrap(object) {
+        if (object.position.x > bounds.x) object.position.x = -bounds.x;
+        if (object.position.x < -bounds.x) object.position.x = bounds.x;
+        if (object.position.z > bounds.z) object.position.z = -bounds.z;
+        if (object.position.z < -bounds.z) object.position.z = bounds.z;
+      }
+
+      function flash(title, text, stay = false) {
+        clearTimeout(messageTimer);
+        messageTitleEl.textContent = title;
+        messageTextEl.textContent = text;
+        messageEl.classList.add('show');
+        if (!stay) messageTimer = setTimeout(() => messageEl.classList.remove('show'), 1100);
+      }
+
+      function spawnWave() {
+        for (let index = 0; index < 3 + wave; index += 1) safeSpawn(1.5 + Math.random() * .8);
+        flash(`WAVE ${String(wave).padStart(2, '0')}`, 'CLEAR THE SECTOR');
+      }
+
+      function shoot(time) {
+        if (ended || time - lastShot < .17) return;
+        lastShot = time;
+        const direction = new THREE.Vector2(-Math.sin(ship.rotation.y), -Math.cos(ship.rotation.y));
+        const shot = new THREE.Mesh(
+          new THREE.CapsuleGeometry(.045, .6, 3, 6),
+          new THREE.MeshBasicMaterial({ color: 0x7fe9ff }),
+        );
+        shot.rotation.x = Math.PI / 2;
+        shot.rotation.z = -ship.rotation.y;
+        shot.position.copy(ship.position);
+        shot.position.x += direction.x;
+        shot.position.z += direction.y;
+        shot.userData = {
+          velocityX: direction.x * 25 + velocity.x,
+          velocityZ: direction.y * 25 + velocity.y,
+          life: 1.35,
+          previous: shot.position.clone(),
+        };
+        scene.add(shot);
+        shots.push(shot);
+      }
+
+      function hitAsteroid(asteroid, index) {
+        const size = asteroid.userData.size;
+        score += size > 1.2 ? 100 : 250;
+        burst(asteroid.position, 0xa9b5d1, size > 1.2 ? 16 : 8);
+        if (size > 1.2) {
+          for (let child = 0; child < 2; child += 1) {
+            makeAsteroid(size * .53, asteroid.position.x + (Math.random() - .5), asteroid.position.z + (Math.random() - .5));
+          }
+        }
+        scene.remove(asteroid);
+        asteroid.geometry.dispose();
+        asteroid.material.dispose();
+        asteroids.splice(index, 1);
+      }
+
+      // Для программиста: расстояние считается до отрезка движения плазмы,
+      // поэтому быстрый выстрел не может «перепрыгнуть» небольшой астероид.
+      function segmentDistanceSquared(from, to, point) {
+        const dx = to.x - from.x;
+        const dz = to.z - from.z;
+        const lengthSquared = dx * dx + dz * dz || 1;
+        const amount = THREE.MathUtils.clamp(((point.x - from.x) * dx + (point.z - from.z) * dz) / lengthSquared, 0, 1);
+        const closestX = from.x + dx * amount;
+        const closestZ = from.z + dz * amount;
+        return (point.x - closestX) ** 2 + (point.z - closestZ) ** 2;
+      }
+
+      function wrappedDistance(a, b) {
+        const rawX = Math.abs(a.position.x - b.position.x);
+        const rawZ = Math.abs(a.position.z - b.position.z);
+        const dx = Math.min(rawX, bounds.x * 2 - rawX);
+        const dz = Math.min(rawZ, bounds.z * 2 - rawZ);
+        return Math.hypot(dx, dz);
+      }
+
+      function reset() {
+        clearTimeout(messageTimer);
+        [...asteroids, ...shots, ...particles].forEach((object) => scene.remove(object));
+        asteroids.length = 0;
+        shots.length = 0;
+        particles.length = 0;
+        score = 0;
+        wave = 1;
+        lives = 3;
+        boost = 100;
+        ended = false;
+        invulnerability = 1.6;
+        lastShot = -1;
+        velocity.set(0, 0);
+        ship.position.set(0, 0, 0);
+        ship.rotation.set(0, 0, 0);
+        ship.visible = true;
+        messageEl.classList.remove('show');
+        spawnWave();
+      }
+
+      addEventListener('keydown', (event) => {
+        keys.add(event.key.toLowerCase());
+        if (event.code === 'Space') {
+          event.preventDefault();
+          shoot(clock.elapsedTime);
+        }
+        if (event.key.toLowerCase() === 'r') reset();
+      });
+      addEventListener('keyup', (event) => keys.delete(event.key.toLowerCase()));
+      addEventListener('blur', () => keys.clear());
+
+      function updateShip(dt, time) {
+        const turn = (keys.has('a') || keys.has('arrowleft') ? 1 : 0) - (keys.has('d') || keys.has('arrowright') ? 1 : 0);
+        ship.rotation.y += turn * dt * 3.3;
+        const thrusting = keys.has('w') || keys.has('arrowup');
+        const boosting = thrusting && keys.has('shift') && boost > 0;
+        const multiplier = boosting ? 2.15 : 1;
+
+        if (thrusting) {
+          velocity.x -= Math.sin(ship.rotation.y) * dt * 10.5 * multiplier;
+          velocity.y -= Math.cos(ship.rotation.y) * dt * 10.5 * multiplier;
+          engine.scale.z = 1.1 + Math.random() * (boosting ? 1.8 : .7);
+          if (boosting) boost = Math.max(0, boost - dt * 27);
+        } else {
+          engine.scale.z = .65;
+        }
+        boost = Math.min(100, boost + dt * 5.4);
+        velocity.multiplyScalar(Math.pow(.62, dt));
+        velocity.clampLength(0, boosting ? 14 : 7.8);
+        ship.position.x += velocity.x * dt;
+        ship.position.z += velocity.y * dt;
+        wrap(ship);
+        ship.rotation.z += (-turn * .18 - ship.rotation.z) * Math.min(1, dt * 10);
+        ship.position.y = Math.sin(time * 4) * .08;
+        if (keys.has(' ')) shoot(time);
+
+        invulnerability = Math.max(0, invulnerability - dt);
+        ship.visible = invulnerability <= 0 || Math.floor(invulnerability * 14) % 2 === 0;
+        shield.visible = invulnerability > 0;
+        shield.rotation.y += dt * 1.8;
+
+        const trailOrigin = new THREE.Vector3(0, 0, 1.8).applyAxisAngle(new THREE.Vector3(0, 1, 0), ship.rotation.y).add(ship.position);
+        engineTrail[0].position.copy(trailOrigin);
+        engineTrail[0].visible = thrusting;
+        for (let index = engineTrail.length - 1; index > 0; index -= 1) {
+          engineTrail[index].position.lerp(engineTrail[index - 1].position, Math.min(1, dt * 18));
+          engineTrail[index].visible = thrusting;
+        }
+      }
+
+      function updateAsteroids(dt) {
+        asteroids.forEach((asteroid) => {
+          asteroid.position.x += asteroid.userData.velocityX * dt;
+          asteroid.position.z += asteroid.userData.velocityZ * dt;
+          asteroid.rotation.x += asteroid.userData.spin * dt;
+          asteroid.rotation.y += asteroid.userData.spin * dt * .7;
+          wrap(asteroid);
+        });
+      }
+
+      function updateShots(dt) {
+        shots.forEach((shot) => {
+          shot.userData.previous.copy(shot.position);
+          shot.position.x += shot.userData.velocityX * dt;
+          shot.position.z += shot.userData.velocityZ * dt;
+          shot.userData.life -= dt;
+          wrap(shot);
+          if (
+            Math.abs(shot.position.x - shot.userData.previous.x) > bounds.x ||
+            Math.abs(shot.position.z - shot.userData.previous.z) > bounds.z
+          ) {
+            // A wrapped segment must not be interpreted as a beam across the whole arena.
+            shot.userData.previous.copy(shot.position);
+          }
+        });
+
+        for (let shotIndex = shots.length - 1; shotIndex >= 0; shotIndex -= 1) {
+          const shot = shots[shotIndex];
+          let used = shot.userData.life <= 0;
+          for (let asteroidIndex = asteroids.length - 1; asteroidIndex >= 0 && !used; asteroidIndex -= 1) {
+            const asteroid = asteroids[asteroidIndex];
+            if (segmentDistanceSquared(shot.userData.previous, shot.position, asteroid.position) < asteroid.userData.radius ** 2) {
+              hitAsteroid(asteroid, asteroidIndex);
+              used = true;
+            }
+          }
+          if (used) {
+            scene.remove(shot);
+            shot.geometry.dispose();
+            shot.material.dispose();
+            shots.splice(shotIndex, 1);
+          }
+        }
+      }
+
+      // Для геймдизайнера: короткая неуязвимость после удара оставляет игроку
+      // время восстановить курс и не потерять весь корпус в одном скоплении камней.
+      function checkShipCollision() {
+        if (invulnerability > 0) return;
+        for (const asteroid of asteroids) {
+          if (wrappedDistance(ship, asteroid) >= asteroid.userData.radius + .55) continue;
+          lives -= 1;
+          invulnerability = 2.1;
+          velocity.multiplyScalar(-.65);
+          burst(ship.position, 0x65dcff, 26);
+          cameraShake = .75;
+          damageEl.classList.add('show');
+          setTimeout(() => damageEl.classList.remove('show'), 160);
+          if (lives <= 0) {
+            lives = 0;
+            ended = true;
+            ship.visible = false;
+            flash('SHIP LOST', `SCORE ${String(score).padStart(6, '0')} · PRESS R TO RESTART`, true);
+          }
+          break;
+        }
+      }
+
+      function updateParticles(dt) {
+        for (let index = particles.length - 1; index >= 0; index -= 1) {
+          const particle = particles[index];
+          particle.position.addScaledVector(particle.userData.velocity, dt);
+          particle.userData.life -= dt;
+          particle.scale.setScalar(Math.max(.01, particle.userData.life));
+          particle.material.opacity = Math.max(0, particle.userData.life * 1.5);
+          if (particle.userData.life <= 0) {
+            scene.remove(particle);
+            particle.geometry.dispose();
+            particle.material.dispose();
+            particles.splice(index, 1);
+          }
+        }
+      }
+
+      function updateHud() {
+        scoreEl.textContent = String(score).padStart(6, '0');
+        waveEl.textContent = String(wave).padStart(2, '0');
+        livesEl.textContent = lives > 0 ? '◆ '.repeat(lives).trim() : '—';
+        boostEl.style.width = `${boost}%`;
+        boostTextEl.textContent = `${Math.round(boost)}%`;
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        const dt = Math.min(clock.getDelta(), .033);
+        const time = clock.elapsedTime;
+
+        if (!ended) {
+          updateShip(dt, time);
+          updateAsteroids(dt);
+          updateShots(dt);
+          checkShipCollision();
+          if (asteroids.length === 0) {
+            wave += 1;
+            spawnWave();
+          }
+        }
+
+        updateParticles(dt);
+        dust.forEach((mote) => {
+          mote.position.z += dt * .36;
+          if (mote.position.z > 17) mote.position.z = -17;
+        });
+        starField.rotation.y = time * .002;
+        cameraShake = Math.max(0, cameraShake - dt * 2.6);
+        const shakeX = (Math.random() - .5) * cameraShake;
+        const shakeZ = (Math.random() - .5) * cameraShake;
+        camera.position.x += (ship.position.x * .08 + shakeX - camera.position.x) * Math.min(1, dt * 2.2);
+        camera.position.z = 22 + shakeZ;
+        camera.lookAt(camera.position.x * .2, 0, 0);
+        updateHud();
+        renderer.render(scene, camera);
+      }
+
+      addEventListener('resize', () => {
+        camera.aspect = innerWidth / innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth, innerHeight);
+      });
+
+      reset();
+      animate();
+    })();
   </script>
   <script src="fps-counter.js"></script>
-</body></html>
+</body>
+</html>

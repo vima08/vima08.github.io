@@ -3,78 +3,127 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-    <title>Tablet Tilt Platformer</title>
+    <title>Tiltbound Platformer</title>
     <link rel="icon" href="/favicons/tablet-platformer.svg" type="image/svg+xml" />
     <style>
-      :root { color-scheme: dark; }
+      :root { color-scheme: dark; --mint: #7af5cb; --ink: #edf9ff; --muted: #9eb4c9; }
+      * { box-sizing: border-box; }
       body {
         margin: 0;
         min-height: 100vh;
         display: grid;
         place-items: center;
-        background: linear-gradient(180deg, #1e2f4d 0%, #0a1020 100%);
-        font-family: Arial, Helvetica, sans-serif;
-        color: #eef3ff;
-        touch-action: manipulation;
+        padding: 22px 12px 112px;
+        overflow-x: hidden;
+        background:
+          radial-gradient(circle at 16% 15%, rgba(115, 80, 220, 0.25), transparent 25rem),
+          radial-gradient(circle at 84% 84%, rgba(34, 225, 175, 0.13), transparent 28rem),
+          #080b17;
+        color: var(--ink);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         user-select: none;
         -webkit-user-select: none;
-        -webkit-touch-callout: none;
       }
-      main { text-align: center; padding: 12px; }
-      h1 { margin-bottom: 8px; }
-      p { margin: 6px 0; }
-      a { color: #9fd4ff; }
+      main { width: min(940px, 100%); }
+      header {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 16px;
+        margin: 0 4px 14px;
+      }
+      h1 { margin: 0; font-size: clamp(29px, 5vw, 48px); line-height: 0.98; letter-spacing: -0.055em; }
+      .eyebrow { margin: 0 0 7px; color: var(--mint); font-size: 11px; font-weight: 850; letter-spacing: .21em; text-transform: uppercase; }
+      a { color: #bdc9ff; text-decoration: none; }
+      a:hover { color: white; }
+      .game-shell {
+        overflow: hidden;
+        border: 1px solid rgba(157, 171, 255, 0.34);
+        border-radius: 22px;
+        background: #0d142b;
+        box-shadow: 0 30px 80px rgba(0, 0, 0, .55), 0 0 0 1px rgba(255,255,255,.035) inset;
+      }
+      canvas { display: block; width: 100%; height: auto; background: #152048; touch-action: none; }
+      .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
       button {
-        margin-top: 8px;
-        padding: 10px 14px;
-        border-radius: 8px;
-        border: 1px solid #8bb7ec;
-        background: #23456d;
+        padding: 10px 15px;
+        border: 1px solid rgba(174, 198, 255, .38);
+        border-radius: 999px;
+        background: linear-gradient(#334671, #202d51);
+        box-shadow: 0 8px 20px rgba(0,0,0,.24), 0 1px rgba(255,255,255,.1) inset;
         color: #fff;
-        font-size: 15px;
+        cursor: pointer;
+        font: 750 13px/1 system-ui, sans-serif;
       }
-      canvas {
-        display: block;
-        margin-top: 12px;
-        border: 2px solid #9ec4ff;
-        background: linear-gradient(180deg, #2f4d73 0%, #12253d 65%, #0f1a2f 100%);
-        box-shadow: 0 12px 35px rgba(0, 0, 0, 0.45);
-        max-width: 100%;
-        height: auto;
-        user-select: none;
-        -webkit-user-select: none;
-        -webkit-touch-callout: none;
+      button:hover { border-color: var(--mint); }
+      button:focus-visible { outline: 3px solid var(--mint); outline-offset: 3px; }
+      #status { margin: 0 0 0 4px; color: var(--muted); font-size: 13px; }
+      .help { margin: 10px 4px 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+      #jumpBtn {
+        position: fixed;
+        right: 20px;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+        z-index: 4;
+        width: 84px;
+        height: 84px;
+        padding: 0;
+        border-color: rgba(218, 255, 241, .72);
+        background: rgba(13, 31, 50, .74);
+        backdrop-filter: blur(12px);
+        touch-action: none;
       }
+      #jumpBtn:active, #jumpBtn.is-active { transform: scale(.94); background: rgba(42, 122, 104, .78); }
+      @media (pointer: fine) and (min-width: 760px) {
+        body { padding-bottom: 26px; }
+        #jumpBtn { display: none; }
+      }
+      @media (max-width: 620px) { header { align-items: start; flex-direction: column; } }
     </style>
   </head>
   <body>
     <main>
-      <h1>Tablet Tilt Platformer</h1>
-      <p>Tilt device left/right to move. Tap and hold to jump higher.</p>
-      <p>Works best on tablets and smartphones with accelerometer.</p>
-      <p><a href="/index.html">← Back to Index</a></p>
-      <button id="motionBtn">Enable motion controls</button>
-      <p id="status">Motion: waiting for permission</p>
-      <canvas id="gameCanvas" width="900" height="440"></canvas>
+      <header>
+        <div>
+          <p class="eyebrow">Motion-controlled journey</p>
+          <h1>Tiltbound</h1>
+        </div>
+        <a href="/index.html">← Back to Index</a>
+      </header>
+
+      <section class="game-shell" aria-label="Tiltbound game">
+        <canvas id="gameCanvas" width="900" height="440"></canvas>
+      </section>
+
+      <div class="toolbar">
+        <button id="motionBtn" type="button">Enable motion</button>
+        <button id="calibrateBtn" type="button" hidden>Set neutral tilt</button>
+        <p id="status" aria-live="polite">Motion: waiting for permission</p>
+      </div>
+      <p class="help">Tilt to move and tap the game or JUMP to leap. Desktop fallback: A/D or ←/→ and Space. Press R to restart.</p>
     </main>
+    <button id="jumpBtn" type="button" aria-label="Jump">JUMP</button>
 
     <script>
+      'use strict';
+
       const canvas = document.getElementById('gameCanvas');
       const ctx = canvas.getContext('2d');
       const statusEl = document.getElementById('status');
       const motionBtn = document.getElementById('motionBtn');
+      const calibrateBtn = document.getElementById('calibrateBtn');
+      const jumpBtn = document.getElementById('jumpBtn');
 
-      const WORLD_WIDTH = 2600;
-      const GRAVITY = 1800;
-      const MAX_MOVE_SPEED = 360;
-      const JUMP_SPEED = 770;
-      const MAX_TILT_DEG = 30;
-
-      const player = { x: 80, y: 220, w: 28, h: 28, vx: 0, vy: 0, onGround: false };
-      let tiltGamma = 0;
-      let jumpPressed = false;
-      let levelComplete = false;
-      let cameraX = 0;
+      const TUNING = Object.freeze({
+        worldWidth: 2600,
+        gravity: 1800,
+        maxMoveSpeed: 360,
+        acceleration: 1900,
+        jumpSpeed: 770,
+        maxTilt: 26,
+        deadZone: 1.8,
+        coyoteTime: 0.11,
+        jumpBuffer: 0.12,
+      });
 
       const platforms = [
         { x: 0, y: 394, w: 300, h: 46 },
@@ -86,184 +135,388 @@
         { x: 1460, y: 214, w: 180, h: 20 },
         { x: 1740, y: 270, w: 200, h: 20 },
         { x: 2060, y: 330, w: 180, h: 20 },
-        { x: WORLD_WIDTH - 260, y: 394, w: 260, h: 46 },
+        { x: TUNING.worldWidth - 260, y: 394, w: 260, h: 46 },
       ];
+      const finishPlatform = platforms.at(-1);
 
-      const finishPlatform = platforms[platforms.length - 1];
+      const player = {
+        x: 80, y: 220, w: 28, h: 28, vx: 0, vy: 0,
+        onGround: false, facing: 1, coyoteLeft: 0, jumpBufferLeft: 0,
+      };
+      const input = { left: false, right: false, jumpHeld: false };
+      const state = {
+        rawTilt: 0, neutralTilt: 0, calibrated: false, motionEnabled: false,
+        levelComplete: false, cameraX: 0, particles: [], deaths: 0, elapsed: 0,
+      };
 
+      function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+      function moveToward(value, target, amount) {
+        if (Math.abs(target - value) <= amount) return target;
+        return value + Math.sign(target - value) * amount;
+      }
       function intersects(a, b) {
         return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
       }
-
-      function resetPlayer() {
-        if (levelComplete) return;
-        player.x = 80;
-        player.y = 220;
-        player.vx = 0;
-        player.vy = 0;
+      function roundedRect(context, x, y, width, height, radius) {
+        const r = Math.min(radius, width / 2, height / 2);
+        context.beginPath();
+        context.moveTo(x + r, y);
+        context.arcTo(x + width, y, x + width, y + height, r);
+        context.arcTo(x + width, y + height, x, y + height, r);
+        context.arcTo(x, y + height, x, y, r);
+        context.arcTo(x, y, x + width, y, r);
+        context.closePath();
       }
 
-      function setJumpDown(isDown) {
-        if (isDown) {
-          if (!jumpPressed && player.onGround && !levelComplete) {
-            player.vy = -JUMP_SPEED;
-            player.onGround = false;
-          }
-          jumpPressed = true;
-        } else {
-          if (jumpPressed && player.vy < 0) {
-            player.vy *= 0.5;
-          }
-          jumpPressed = false;
+      function spawnParticles(x, y, color, amount = 10) {
+        for (let i = 0; i < amount; i += 1) {
+          state.particles.push({
+            x, y,
+            vx: (Math.random() - 0.5) * 240,
+            vy: -40 - Math.random() * 170,
+            life: 0.35 + Math.random() * 0.45,
+            size: 2 + Math.random() * 4,
+            color,
+          });
         }
       }
 
+      function resetPlayer(countDeath = false) {
+        if (countDeath) {
+          state.deaths += 1;
+          spawnParticles(player.x + player.w / 2, Math.min(player.y, canvas.height) + player.h / 2, '#ff7198', 16);
+        }
+        Object.assign(player, {
+          x: 80, y: 220, vx: 0, vy: 0, onGround: false,
+          facing: 1, coyoteLeft: 0, jumpBufferLeft: 0,
+        });
+        input.jumpHeld = false;
+        state.cameraX = 0;
+        jumpBtn.classList.remove('is-active');
+      }
+
+      function restartGame() {
+        state.levelComplete = false;
+        state.deaths = 0;
+        state.elapsed = 0;
+        state.particles.length = 0;
+        resetPlayer(false);
+      }
+
+      function setJumpDown(isDown) {
+        if (isDown && !input.jumpHeld && !state.levelComplete) player.jumpBufferLeft = TUNING.jumpBuffer;
+        // Для программиста: уменьшение скорости вверх при отпускании создаёт переменную высоту прыжка.
+        if (!isDown && input.jumpHeld && player.vy < 0) player.vy *= 0.48;
+        input.jumpHeld = isDown;
+        jumpBtn.classList.toggle('is-active', isDown);
+      }
+
+      function getOrientationTilt(event) {
+        const angle = screen.orientation?.angle ?? window.orientation ?? 0;
+        if (Math.abs(angle) === 90) return event.beta * (angle === 90 ? -1 : 1);
+        return event.gamma;
+      }
+
       function onDeviceOrientation(event) {
-        if (typeof event.gamma !== 'number') return;
-        tiltGamma = Math.max(-MAX_TILT_DEG, Math.min(MAX_TILT_DEG, event.gamma));
-        statusEl.textContent = `Motion: active (tilt ${tiltGamma.toFixed(1)}°)`;
+        if (typeof event.gamma !== 'number' || typeof event.beta !== 'number') return;
+        state.rawTilt = getOrientationTilt(event);
+        if (!state.calibrated) calibrateTilt();
+        const tilt = clamp(state.rawTilt - state.neutralTilt, -TUNING.maxTilt, TUNING.maxTilt);
+        statusEl.textContent = `Motion: active · tilt ${tilt.toFixed(1)}°`;
+      }
+
+      function calibrateTilt() {
+        state.neutralTilt = state.rawTilt;
+        state.calibrated = true;
+        statusEl.textContent = 'Motion: neutral position saved';
       }
 
       async function enableMotion() {
         if (typeof DeviceOrientationEvent === 'undefined') {
-          statusEl.textContent = 'Motion: not supported on this device/browser';
+          statusEl.textContent = 'Motion: not supported — keyboard still works';
           return;
         }
-
         try {
           if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-            const result = await DeviceOrientationEvent.requestPermission();
-            if (result !== 'granted') {
-              statusEl.textContent = 'Motion: permission denied';
+            const permission = await DeviceOrientationEvent.requestPermission();
+            if (permission !== 'granted') {
+              statusEl.textContent = 'Motion: permission denied — keyboard still works';
               return;
             }
           }
-
+          // Для программиста: калибровка вычитает естественный наклон рук, поэтому «ноль» удобен в любой позе.
+          state.motionEnabled = true;
+          state.calibrated = false;
           window.addEventListener('deviceorientation', onDeviceOrientation, { passive: true });
-          statusEl.textContent = 'Motion: enabled, tilt your device';
           motionBtn.hidden = true;
-        } catch (err) {
-          statusEl.textContent = 'Motion: failed to start';
+          calibrateBtn.hidden = false;
+          statusEl.textContent = 'Motion: enabled — hold the device comfortably';
+        } catch {
+          statusEl.textContent = 'Motion: could not start — keyboard still works';
         }
       }
 
-      motionBtn.addEventListener('click', enableMotion);
+      function effectiveTilt() {
+        const delta = state.motionEnabled ? state.rawTilt - state.neutralTilt : 0;
+        if (Math.abs(delta) < TUNING.deadZone) return 0;
+        return clamp(delta, -TUNING.maxTilt, TUNING.maxTilt);
+      }
 
-      window.addEventListener('contextmenu', (event) => {
-        event.preventDefault();
-      });
-
-      window.addEventListener('selectstart', (event) => {
-        event.preventDefault();
-      });
-
-      window.addEventListener('dragstart', (event) => {
-        event.preventDefault();
-      });
-
-      const pointerTarget = document.body;
-      pointerTarget.addEventListener('pointerdown', (event) => {
-        event.preventDefault();
-        setJumpDown(true);
-      }, { passive: false });
-      pointerTarget.addEventListener('pointerup', () => setJumpDown(false));
-      pointerTarget.addEventListener('pointercancel', () => setJumpDown(false));
-      pointerTarget.addEventListener('pointerleave', () => setJumpDown(false));
-
-      function update(dt) {
-        if (levelComplete) return;
-
-        const moveFactor = tiltGamma / MAX_TILT_DEG;
-        player.vx = moveFactor * MAX_MOVE_SPEED;
+      function resolvePlayerMovement(dt) {
         player.x += player.vx * dt;
-        player.x = Math.max(0, Math.min(WORLD_WIDTH - player.w, player.x));
-
-        player.vy += GRAVITY * dt;
-        player.y += player.vy * dt;
-        player.onGround = false;
-
+        player.x = clamp(player.x, 0, TUNING.worldWidth - player.w);
         for (const platform of platforms) {
           if (!intersects(player, platform)) continue;
+          if (player.vx > 0) player.x = platform.x - player.w;
+          else if (player.vx < 0) player.x = platform.x + platform.w;
+          player.vx = 0;
+        }
 
-          const prevBottom = player.y - player.vy * dt + player.h;
-          const prevTop = player.y - player.vy * dt;
-          const prevRight = player.x - player.vx * dt + player.w;
-          const prevLeft = player.x - player.vx * dt;
-
-          if (prevBottom <= platform.y) {
+        const previousBottom = player.y + player.h;
+        player.vy += TUNING.gravity * dt;
+        player.y += player.vy * dt;
+        player.onGround = false;
+        for (const platform of platforms) {
+          if (!intersects(player, platform)) continue;
+          if (player.vy >= 0 && previousBottom <= platform.y + 1) {
             player.y = platform.y - player.h;
             player.vy = 0;
             player.onGround = true;
-            if (platform === finishPlatform) {
-              levelComplete = true;
-              jumpPressed = false;
+            if (platform === finishPlatform && !state.levelComplete) {
+              state.levelComplete = true;
+              input.left = false;
+              input.right = false;
+              setJumpDown(false);
+              spawnParticles(player.x + player.w / 2, player.y, '#7af5cb', 34);
             }
-          } else if (prevTop >= platform.y + platform.h) {
+          } else if (player.vy < 0) {
             player.y = platform.y + platform.h;
             player.vy = 0;
-          } else if (prevRight <= platform.x) {
-            player.x = platform.x - player.w;
-          } else if (prevLeft >= platform.x + platform.w) {
-            player.x = platform.x + platform.w;
           }
         }
+      }
 
-        if (player.y > canvas.height + 150) {
-          resetPlayer();
+      function updateParticles(dt) {
+        for (let i = state.particles.length - 1; i >= 0; i -= 1) {
+          const particle = state.particles[i];
+          particle.life -= dt;
+          if (particle.life <= 0) {
+            state.particles.splice(i, 1);
+            continue;
+          }
+          particle.x += particle.vx * dt;
+          particle.y += particle.vy * dt;
+          particle.vy += 420 * dt;
+        }
+      }
+
+      function update(dt) {
+        updateParticles(dt);
+        if (state.levelComplete) return;
+        state.elapsed += dt;
+        player.jumpBufferLeft = Math.max(0, player.jumpBufferLeft - dt);
+        player.coyoteLeft = player.onGround ? TUNING.coyoteTime : Math.max(0, player.coyoteLeft - dt);
+
+        const keyboard = Number(input.right) - Number(input.left);
+        const tilt = effectiveTilt() / TUNING.maxTilt;
+        const moveInput = keyboard || tilt;
+        player.vx = moveToward(player.vx, moveInput * TUNING.maxMoveSpeed, TUNING.acceleration * dt);
+        if (Math.abs(player.vx) > 7) player.facing = Math.sign(player.vx);
+
+        // Для геймдизайнера: небольшой coyote time и буфер делают управление жестом менее капризным.
+        if (player.jumpBufferLeft > 0 && player.coyoteLeft > 0) {
+          player.vy = -TUNING.jumpSpeed;
+          player.onGround = false;
+          player.coyoteLeft = 0;
+          player.jumpBufferLeft = 0;
+          spawnParticles(player.x + player.w / 2, player.y + player.h, '#d7fff1', 7);
         }
 
-        const targetCamera = player.x - canvas.width * 0.35;
-        cameraX = Math.max(0, Math.min(WORLD_WIDTH - canvas.width, targetCamera));
+        resolvePlayerMovement(dt);
+        if (player.y > canvas.height + 150) resetPlayer(true);
+        const cameraTarget = clamp(player.x - canvas.width * 0.35, 0, TUNING.worldWidth - canvas.width);
+        state.cameraX = moveToward(state.cameraX, cameraTarget, 900 * dt);
+      }
+
+      function drawBackground() {
+        const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        sky.addColorStop(0, '#27265a');
+        sky.addColorStop(.62, '#182746');
+        sky.addColorStop(1, '#0b1729');
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        for (let layer = 0; layer < 3; layer += 1) {
+          const parallax = 0.04 + layer * 0.07;
+          const baseline = 275 + layer * 44;
+          ctx.fillStyle = [`rgba(123, 96, 187, .20)`, `rgba(48, 91, 125, .34)`, `rgba(21, 55, 77, .72)`][layer];
+          ctx.beginPath();
+          ctx.moveTo(0, canvas.height);
+          for (let x = -60; x <= canvas.width + 60; x += 60) {
+            const worldX = x + state.cameraX * parallax;
+            const y = baseline - Math.abs(Math.sin(worldX * .006 + layer)) * (52 - layer * 8);
+            ctx.lineTo(x, y);
+          }
+          ctx.lineTo(canvas.width, canvas.height);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        ctx.fillStyle = 'rgba(212, 239, 255, .48)';
+        for (let i = 0; i < 34; i += 1) {
+          const x = (i * 173 - state.cameraX * (0.015 + (i % 3) * .01)) % (canvas.width + 40);
+          const y = 24 + ((i * 71) % 190);
+          ctx.fillRect(x, y, i % 5 === 0 ? 2 : 1, i % 5 === 0 ? 2 : 1);
+        }
+      }
+
+      function drawPlatform(platform) {
+        const finish = platform === finishPlatform;
+        ctx.save();
+        ctx.shadowBlur = finish ? 30 : 10;
+        ctx.shadowColor = finish ? '#7af5cb' : 'rgba(84, 142, 166, .45)';
+        const gradient = ctx.createLinearGradient(0, platform.y, 0, platform.y + platform.h);
+        gradient.addColorStop(0, finish ? '#84f7d0' : '#6692a8');
+        gradient.addColorStop(.16, finish ? '#2a9c83' : '#365b74');
+        gradient.addColorStop(1, '#14263d');
+        ctx.fillStyle = gradient;
+        roundedRect(ctx, platform.x, platform.y, platform.w, platform.h, Math.min(7, platform.h / 2));
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = finish ? '#e2fff5' : 'rgba(190, 235, 241, .65)';
+        ctx.fillRect(platform.x + 8, platform.y + 3, Math.max(0, platform.w - 16), 2);
+        ctx.restore();
+
+        if (finish) {
+          ctx.strokeStyle = 'rgba(122, 245, 203, .8)';
+          ctx.lineWidth = 4;
+          ctx.strokeRect(platform.x + platform.w - 60, platform.y - 76, 42, 74);
+          const pulse = 8 + Math.sin(performance.now() * .006) * 3;
+          ctx.fillStyle = 'rgba(122, 245, 203, .23)';
+          ctx.beginPath();
+          ctx.arc(platform.x + platform.w - 39, platform.y - 39, pulse, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      function drawPlayer() {
+        ctx.save();
+        ctx.shadowColor = '#efffff';
+        ctx.shadowBlur = 20;
+        const gradient = ctx.createLinearGradient(player.x, player.y, player.x, player.y + player.h);
+        gradient.addColorStop(0, '#ffffff');
+        gradient.addColorStop(1, '#a8e2db');
+        ctx.fillStyle = gradient;
+        roundedRect(ctx, player.x, player.y, player.w, player.h, 8);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#1c3152';
+        ctx.fillRect(player.x + (player.facing > 0 ? 18 : 6), player.y + 9, 4, 5);
+        ctx.restore();
+      }
+
+      function drawHud() {
+        ctx.fillStyle = 'rgba(6, 14, 31, .68)';
+        roundedRect(ctx, 14, 14, 276, 54, 13);
+        ctx.fill();
+        ctx.fillStyle = '#9bb3ca';
+        ctx.font = '750 11px system-ui';
+        ctx.fillText('TILT VECTOR', 29, 34);
+        ctx.fillStyle = '#f0fbff';
+        ctx.font = '800 17px system-ui';
+        const tiltLabel = state.motionEnabled ? `${effectiveTilt().toFixed(1)}°` : 'KEYBOARD';
+        ctx.fillText(tiltLabel, 29, 56);
+        ctx.fillStyle = '#9bb3ca';
+        ctx.font = '700 12px system-ui';
+        ctx.fillText(`FALLS ${state.deaths}`, 145, 55);
+      }
+
+      function drawOverlay() {
+        ctx.fillStyle = 'rgba(5, 10, 24, .76)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#7af5cb';
+        ctx.font = '850 13px system-ui';
+        ctx.fillText('RIDGE CROSSED', canvas.width / 2, 174);
+        ctx.fillStyle = '#f3fbff';
+        ctx.font = '900 48px system-ui';
+        ctx.fillText('Balance restored', canvas.width / 2, 226);
+        ctx.fillStyle = '#aebfd2';
+        ctx.font = '500 17px system-ui';
+        ctx.fillText(`Time ${state.elapsed.toFixed(1)}s · Falls ${state.deaths} · Tap or press R to replay`, canvas.width / 2, 263);
+        ctx.textAlign = 'left';
       }
 
       function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
+        drawBackground();
         ctx.save();
-        ctx.translate(-cameraX, 0);
-
-        ctx.fillStyle = '#4f6c93';
-        for (let i = 0; i < WORLD_WIDTH; i += 80) {
-          ctx.fillRect(i, 0, 2, canvas.height);
+        ctx.translate(-state.cameraX, 0);
+        platforms.forEach(drawPlatform);
+        drawPlayer();
+        for (const particle of state.particles) {
+          ctx.globalAlpha = Math.min(1, particle.life * 2.5);
+          ctx.fillStyle = particle.color;
+          ctx.fillRect(particle.x, particle.y, particle.size, particle.size);
         }
-
-        ctx.fillStyle = '#7089ad';
-        for (const platform of platforms) {
-          ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
-        }
-
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(player.x, player.y, player.w, player.h);
-
+        ctx.globalAlpha = 1;
         ctx.restore();
-
-        ctx.fillStyle = '#d9e6ff';
-        ctx.font = '16px Arial';
-        ctx.fillText('Tilt to move. Tap & hold to jump higher. Reach the final platform.', 16, 26);
-
-        if (levelComplete) {
-          ctx.fillStyle = 'rgba(7, 14, 24, 0.6)';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.fillStyle = '#d8f7a1';
-          ctx.font = 'bold 42px Arial';
-          ctx.textAlign = 'center';
-          ctx.fillText('You Win!', canvas.width / 2, canvas.height / 2 - 8);
-          ctx.font = '20px Arial';
-          ctx.fillStyle = '#ecf7ff';
-          ctx.fillText('Refresh to play again', canvas.width / 2, canvas.height / 2 + 28);
-          ctx.textAlign = 'left';
-        }
+        drawHud();
+        if (state.levelComplete) drawOverlay();
       }
+
+      function setKeyboard(key, isDown) {
+        const normalized = key.toLowerCase();
+        if (key === 'ArrowLeft' || normalized === 'a') input.left = isDown;
+        if (key === 'ArrowRight' || normalized === 'd') input.right = isDown;
+        if (key === ' ' || normalized === 'w' || key === 'ArrowUp') setJumpDown(isDown);
+      }
+      window.addEventListener('keydown', (event) => {
+        if (['arrowleft', 'arrowright', 'arrowup', ' ', 'a', 'd', 'w', 'r'].includes(event.key.toLowerCase())) event.preventDefault();
+        if (event.key.toLowerCase() === 'r') {
+          restartGame();
+          return;
+        }
+        setKeyboard(event.key, true);
+      });
+      window.addEventListener('keyup', (event) => setKeyboard(event.key, false));
+      window.addEventListener('blur', () => {
+        input.left = false;
+        input.right = false;
+        setJumpDown(false);
+      });
+
+      function bindJumpSurface(element) {
+        const release = () => setJumpDown(false);
+        element.addEventListener('pointerdown', (event) => {
+          event.preventDefault();
+          if (state.levelComplete) {
+            restartGame();
+            return;
+          }
+          element.setPointerCapture?.(event.pointerId);
+          setJumpDown(true);
+        }, { passive: false });
+        element.addEventListener('pointerup', release);
+        element.addEventListener('pointercancel', release);
+        element.addEventListener('lostpointercapture', release);
+      }
+      // Для программиста: прыжок слушает только canvas/кнопку, поэтому клик по Motion или ссылке больше не прыгает.
+      bindJumpSurface(canvas);
+      bindJumpSurface(jumpBtn);
+      motionBtn.addEventListener('click', enableMotion);
+      calibrateBtn.addEventListener('click', calibrateTilt);
+      window.addEventListener('contextmenu', (event) => event.preventDefault());
 
       let lastTime = performance.now();
       function gameLoop(now) {
-        const dt = Math.min(0.033, (now - lastTime) / 1000);
+        const dt = Math.min(1 / 30, (now - lastTime) / 1000);
         lastTime = now;
         update(dt);
         draw();
         requestAnimationFrame(gameLoop);
       }
 
+      resetPlayer(false);
       requestAnimationFrame(gameLoop);
     </script>
   </body>

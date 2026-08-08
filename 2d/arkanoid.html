@@ -1,308 +1,438 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arkanoid</title>
-    <link rel="icon" href="/favicons/arkanoid.svg" type="image/svg+xml" />
-    <style>
-        body {
-            margin: 0;
-            background: #111;
-            color: #fff;
-            font-family: Arial, sans-serif;
-            text-align: center;
-        }
-
-        h1 {
-            margin: 16px 0 8px;
-        }
-
-        p {
-            margin: 6px 0;
-        }
-
-        canvas {
-            display: block;
-            margin: 14px auto;
-            background: #000;
-            border: 2px solid #fff;
-        }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arkanoid — Prism Breaker</title>
+  <link rel="icon" href="/favicons/arkanoid.svg" type="image/svg+xml">
+  <style>
+    :root { color-scheme: dark; --cyan: #5af2ff; --violet: #a779ff; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: grid; place-items: center;
+      color: #edf8ff; font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      background:
+        radial-gradient(circle at 20% 10%, #1b3a59 0, transparent 34%),
+        radial-gradient(circle at 85% 75%, #3b1d5c 0, transparent 35%),
+        #060913;
+    }
+    main { width: min(930px, 100%); padding: clamp(12px, 3vw, 28px); }
+    header { display: flex; justify-content: space-between; align-items: end; gap: 18px; margin-bottom: 12px; }
+    h1 { margin: 0; font-size: clamp(27px, 5vw, 44px); letter-spacing: -.05em; }
+    h1 span { color: var(--cyan); text-shadow: 0 0 24px #5af2ff77; }
+    .hud { display: flex; gap: 9px; flex-wrap: wrap; justify-content: end; }
+    .pill { padding: 8px 13px; border: 1px solid #ffffff17; border-radius: 999px; background: #0a1020c7; color: #aebed2; font-size: 13px; }
+    .pill strong { color: #fff; }
+    .canvas-frame { padding: 1px; border-radius: 22px; background: linear-gradient(130deg, #5af2ff99, #ffffff12 52%, #a779ff99); box-shadow: 0 30px 90px #000c, 0 0 45px #5af2ff16; }
+    canvas { display: block; width: 100%; height: auto; border-radius: 21px; touch-action: none; cursor: none; }
+    .help { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin: 12px 3px 0; color: #95a7ba; font-size: 13px; }
+    .actions { display: flex; align-items: center; gap: 9px; }
+    button, kbd { border: 1px solid #33465d; border-radius: 7px; background: #10192a; color: #dffbff; }
+    button { padding: 7px 11px; cursor: pointer; }
+    button:disabled { opacity: .45; cursor: default; }
+    kbd { padding: 2px 7px; border-bottom-width: 2px; }
+    @media (max-width: 650px) { header, .help { align-items: start; flex-direction: column; } .hud { justify-content: start; } }
+  </style>
 </head>
 <body>
-    <h1>Arkanoid</h1>
-    <p>Move: ← → or Tilt tablet | Restart: R</p>
-    <p id="tiltInfo">Tilt: unavailable</p>
-    <p id="status">Score: 0 | Lives: 3</p>
-    <canvas id="gameCanvas" width="800" height="500"></canvas>
+  <main>
+    <header>
+      <h1>PRISM <span>BREAKER</span></h1>
+      <div class="hud">
+        <div class="pill">Счёт <strong id="score">0</strong></div>
+        <div class="pill">Жизни <strong id="lives">♥ ♥ ♥</strong></div>
+        <div class="pill" id="status">Раунд идёт</div>
+      </div>
+    </header>
+    <div class="canvas-frame">
+      <canvas id="gameCanvas" width="800" height="520" aria-label="Арканоид"></canvas>
+    </div>
+    <div class="help">
+      <span><kbd>←</kbd> <kbd>→</kbd> или указатель · <kbd>P</kbd> пауза · <kbd>R</kbd> заново</span>
+      <div class="actions"><button id="tiltButton" type="button">Включить наклон</button><span id="tiltInfo">Проверяем датчик…</span></div>
+    </div>
+  </main>
 
-    <script>
-        const canvas = document.getElementById("gameCanvas");
-        const ctx = canvas.getContext("2d");
-        const statusLabel = document.getElementById("status");
-        const tiltInfoLabel = document.getElementById("tiltInfo");
+  <script>
+    'use strict';
 
-        const paddle = {
-            width: 120,
-            height: 14,
-            x: canvas.width / 2 - 60,
-            y: canvas.height - 32,
-            speed: 8,
-            movingLeft: false,
-            movingRight: false
-        };
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreLabel = document.getElementById('score');
+    const livesLabel = document.getElementById('lives');
+    const statusLabel = document.getElementById('status');
+    const tiltInfoLabel = document.getElementById('tiltInfo');
+    const tiltButton = document.getElementById('tiltButton');
+    const W = canvas.width;
+    const H = canvas.height;
 
-        const ball = {
-            x: canvas.width / 2,
-            y: canvas.height - 50,
-            radius: 9,
-            dx: 4,
-            dy: -4
-        };
+    const CONFIG = {
+      rows: 6,
+      cols: 10,
+      brickWidth: 68,
+      brickHeight: 20,
+      gap: 8,
+      top: 82,
+      left: 24,
+      paddleSpeed: 560,
+      initialBallSpeed: 330,
+      maxBallSpeed: 520,
+      serveDelay: .75
+    };
+    const ROW_COLORS = ['#ff5d8f', '#dd6cff', '#8b7bff', '#55baff', '#4de1d1', '#9bea75'];
 
-        const brickConfig = {
-            rows: 6,
-            cols: 10,
-            width: 70,
-            height: 20,
-            padding: 8,
-            offsetTop: 60,
-            offsetLeft: 25
-        };
+    const paddle = { x: W / 2 - 62, y: H - 38, w: 124, h: 14 };
+    const ball = { x: W / 2, y: H - 60, r: 9, vx: 0, vy: 0, trail: [] };
+    const keys = new Set();
+    const particles = [];
+    let bricks = [];
+    let score = 0;
+    let lives = 3;
+    let state = 'playing';
+    let serveTimer = CONFIG.serveDelay;
+    let tiltEnabled = false;
+    let tiltRequestPending = false;
+    let tiltGamma = 0;
+    let pointerActive = false;
+    let shake = 0;
+    let lastTime = performance.now();
 
-        let bricks = [];
-        let score = 0;
-        let lives = 3;
-        let gameOver = false;
-        let gameWon = false;
-        let tiltEnabled = false;
-        let tiltGamma = 0;
-        const maxTiltAngle = 30;
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const random = (min, max) => min + Math.random() * (max - min);
 
-        function createBricks() {
-            bricks = [];
-            for (let r = 0; r < brickConfig.rows; r++) {
-                bricks[r] = [];
-                for (let c = 0; c < brickConfig.cols; c++) {
-                    bricks[r][c] = { x: 0, y: 0, alive: true };
-                }
-            }
+    function createBricks() {
+      bricks = [];
+      for (let row = 0; row < CONFIG.rows; row += 1) {
+        for (let col = 0; col < CONFIG.cols; col += 1) {
+          bricks.push({
+            x: CONFIG.left + col * (CONFIG.brickWidth + CONFIG.gap),
+            y: CONFIG.top + row * (CONFIG.brickHeight + CONFIG.gap),
+            w: CONFIG.brickWidth,
+            h: CONFIG.brickHeight,
+            row,
+            alive: true
+          });
+        }
+      }
+    }
+
+    function updateHud() {
+      scoreLabel.textContent = score;
+      livesLabel.textContent = lives > 0 ? '♥ '.repeat(lives).trim() : '—';
+      const labels = { playing: 'Раунд идёт', paused: 'Пауза', won: 'Победа!', lost: 'Игра окончена' };
+      statusLabel.textContent = labels[state];
+    }
+
+    function resetBallAndPaddle() {
+      paddle.x = W / 2 - paddle.w / 2;
+      ball.x = W / 2;
+      ball.y = paddle.y - ball.r - 5;
+      ball.vx = 0;
+      ball.vy = 0;
+      ball.trail.length = 0;
+      serveTimer = CONFIG.serveDelay;
+    }
+
+    function launchBall() {
+      const direction = Math.random() < .5 ? -1 : 1;
+      const angle = random(.24, .48);
+      ball.vx = Math.sin(angle) * CONFIG.initialBallSpeed * direction;
+      ball.vy = -Math.cos(angle) * CONFIG.initialBallSpeed;
+    }
+
+    function restartGame() {
+      score = 0;
+      lives = 3;
+      state = 'playing';
+      particles.length = 0;
+      createBricks();
+      resetBallAndPaddle();
+      updateHud();
+    }
+
+    function spawnImpact(x, y, color, amount = 14) {
+      for (let i = 0; i < amount; i += 1) {
+        const angle = random(0, Math.PI * 2);
+        const speed = random(40, 190);
+        particles.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: random(.25, .7), size: random(2, 5), color });
+      }
+    }
+
+    function circleOverlapsRect(circle, rect) {
+      const closestX = clamp(circle.x, rect.x, rect.x + rect.w);
+      const closestY = clamp(circle.y, rect.y, rect.y + rect.h);
+      return (circle.x - closestX) ** 2 + (circle.y - closestY) ** 2 <= circle.r ** 2;
+    }
+
+    function bounceFromPaddle() {
+      if (ball.vy <= 0 || !circleOverlapsRect(ball, paddle)) return;
+      const hitPosition = clamp((ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2), -1, 1);
+      const speed = Math.min(Math.hypot(ball.vx, ball.vy) * 1.025, CONFIG.maxBallSpeed);
+      const angle = hitPosition * 1.05;
+      // Для геймдизайнера: положение мяча на платформе задаёт направление — это главный слой мастерства Arkanoid.
+      ball.vx = Math.sin(angle) * speed;
+      ball.vy = -Math.cos(angle) * speed;
+      ball.y = paddle.y - ball.r;
+      spawnImpact(ball.x, ball.y, '#5af2ff', 8);
+      shake = 2;
+    }
+
+    function bounceFromBrick(brick, previousX, previousY) {
+      brick.alive = false;
+      score += 10;
+      const color = ROW_COLORS[brick.row];
+      spawnImpact(ball.x, ball.y, color, 17);
+      shake = 4;
+
+      // Для программиста: предыдущая позиция отличает боковой удар от вертикального и устраняет неверный вечный flip по Y.
+      if (previousY + ball.r <= brick.y && ball.vy > 0) {
+        ball.y = brick.y - ball.r;
+        ball.vy = -Math.abs(ball.vy);
+      } else if (previousY - ball.r >= brick.y + brick.h && ball.vy < 0) {
+        ball.y = brick.y + brick.h + ball.r;
+        ball.vy = Math.abs(ball.vy);
+      } else if (previousX < brick.x) {
+        ball.x = brick.x - ball.r;
+        ball.vx = -Math.abs(ball.vx);
+      } else {
+        ball.x = brick.x + brick.w + ball.r;
+        ball.vx = Math.abs(ball.vx);
+      }
+
+      if (bricks.every((item) => !item.alive)) {
+        state = 'won';
+        ball.vx = ball.vy = 0;
+        spawnImpact(W / 2, H / 2, '#fff1a8', 60);
+      }
+      updateHud();
+    }
+
+    function loseBall() {
+      lives = Math.max(0, lives - 1);
+      if (lives === 0) {
+        state = 'lost';
+        ball.vx = ball.vy = 0;
+      } else {
+        resetBallAndPaddle();
+      }
+      updateHud();
+    }
+
+    function updateBall(dt) {
+      if (serveTimer > 0) {
+        serveTimer -= dt;
+        ball.x = paddle.x + paddle.w / 2;
+        ball.y = paddle.y - ball.r - 5;
+        if (serveTimer <= 0) launchBall();
+        return;
+      }
+
+      // Скорость выражена в пикселях в секунду; подшаги защищают тонкие кирпичи от туннелирования.
+      const substeps = Math.max(1, Math.ceil(Math.hypot(ball.vx, ball.vy) * dt / (ball.r * .75)));
+      const step = dt / substeps;
+      for (let i = 0; i < substeps && state === 'playing'; i += 1) {
+        const previousX = ball.x;
+        const previousY = ball.y;
+        ball.x += ball.vx * step;
+        ball.y += ball.vy * step;
+
+        if (ball.x - ball.r <= 13 && ball.vx < 0) {
+          ball.x = 13 + ball.r;
+          ball.vx *= -1;
+        } else if (ball.x + ball.r >= W - 13 && ball.vx > 0) {
+          ball.x = W - 13 - ball.r;
+          ball.vx *= -1;
+        }
+        if (ball.y - ball.r <= 13 && ball.vy < 0) {
+          ball.y = 13 + ball.r;
+          ball.vy *= -1;
         }
 
-        function resetBallAndPaddle() {
-            paddle.x = canvas.width / 2 - paddle.width / 2;
-            ball.x = canvas.width / 2;
-            ball.y = canvas.height - 50;
-            ball.dx = 4 * (Math.random() > 0.5 ? 1 : -1);
-            ball.dy = -4;
+        bounceFromPaddle();
+        const hitBrick = bricks.find((brick) => brick.alive && circleOverlapsRect(ball, brick));
+        if (hitBrick) bounceFromBrick(hitBrick, previousX, previousY);
+      }
+
+      if (ball.y - ball.r > H) loseBall();
+      if (ball.vx || ball.vy) ball.trail.unshift({ x: ball.x, y: ball.y });
+      ball.trail.length = Math.min(ball.trail.length, 14);
+    }
+
+    function update(dt) {
+      const keyboardDirection = (keys.has('arrowright') ? 1 : 0) - (keys.has('arrowleft') ? 1 : 0);
+      const tiltDirection = tiltEnabled ? clamp(tiltGamma / 28, -1, 1) : 0;
+      if (!pointerActive) paddle.x += (keyboardDirection + tiltDirection) * CONFIG.paddleSpeed * dt;
+      paddle.x = clamp(paddle.x, 14, W - 14 - paddle.w);
+      updateBall(dt);
+
+      for (const particle of particles) {
+        particle.x += particle.vx * dt;
+        particle.y += particle.vy * dt;
+        particle.vx *= Math.pow(.08, dt);
+        particle.vy *= Math.pow(.08, dt);
+        particle.life -= dt;
+      }
+      for (let i = particles.length - 1; i >= 0; i -= 1) if (particles[i].life <= 0) particles.splice(i, 1);
+      shake = Math.max(0, shake - 25 * dt);
+    }
+
+    function drawBackground(time) {
+      const background = ctx.createLinearGradient(0, 0, 0, H);
+      background.addColorStop(0, '#101b37'); background.addColorStop(.48, '#080c1d'); background.addColorStop(1, '#111027');
+      ctx.fillStyle = background; ctx.fillRect(0, 0, W, H);
+      const haze = ctx.createRadialGradient(W * .5, H * .12, 10, W * .5, H * .12, 380);
+      haze.addColorStop(0, '#426cf33b'); haze.addColorStop(1, '#426cf300');
+      ctx.fillStyle = haze; ctx.fillRect(0, 0, W, H);
+
+      ctx.globalAlpha = .28;
+      for (let i = 0; i < 55; i += 1) {
+        const x = (i * 83 + time * (.004 + i % 3 * .002)) % W;
+        const y = (i * 47) % H;
+        ctx.fillStyle = i % 8 === 0 ? '#8aeaff' : '#ffffff';
+        ctx.fillRect(x, y, i % 8 === 0 ? 2 : 1, i % 8 === 0 ? 2 : 1);
+      }
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = '#84dfff22'; ctx.strokeRect(13, 13, W - 26, H - 26);
+    }
+
+    function drawBricks(time) {
+      for (const brick of bricks) {
+        if (!brick.alive) continue;
+        const color = ROW_COLORS[brick.row];
+        ctx.save();
+        ctx.shadowColor = color; ctx.shadowBlur = 9;
+        const gradient = ctx.createLinearGradient(brick.x, brick.y, brick.x, brick.y + brick.h);
+        gradient.addColorStop(0, '#ffffff'); gradient.addColorStop(.16, color); gradient.addColorStop(1, '#17253d');
+        ctx.fillStyle = gradient;
+        ctx.beginPath(); ctx.roundRect(brick.x, brick.y, brick.w, brick.h, 5); ctx.fill();
+        ctx.globalAlpha = .35 + Math.sin(time * .002 + brick.x) * .08;
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(brick.x + 6, brick.y + 3, brick.w - 12, 2);
+        ctx.restore();
+      }
+    }
+
+    function drawPaddle() {
+      ctx.save(); ctx.shadowColor = '#5af2ff'; ctx.shadowBlur = 24;
+      const gradient = ctx.createLinearGradient(paddle.x, paddle.y, paddle.x, paddle.y + paddle.h);
+      gradient.addColorStop(0, '#eaffff'); gradient.addColorStop(.35, '#66efff'); gradient.addColorStop(1, '#236a93');
+      ctx.fillStyle = gradient; ctx.beginPath(); ctx.roundRect(paddle.x, paddle.y, paddle.w, paddle.h, 8); ctx.fill();
+      ctx.fillStyle = '#ffffffaa'; ctx.beginPath(); ctx.roundRect(paddle.x + 15, paddle.y + 2, paddle.w - 30, 3, 2); ctx.fill();
+      ctx.restore();
+    }
+
+    function drawBall() {
+      ball.trail.forEach((point, index) => {
+        ctx.globalAlpha = (1 - index / ball.trail.length) * .28;
+        ctx.fillStyle = '#bffaff'; ctx.beginPath(); ctx.arc(point.x, point.y, Math.max(1, ball.r - index * .45), 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.globalAlpha = 1; ctx.save(); ctx.shadowColor = '#dffcff'; ctx.shadowBlur = 24;
+      const gradient = ctx.createRadialGradient(ball.x - 3, ball.y - 3, 1, ball.x, ball.y, ball.r);
+      gradient.addColorStop(0, '#ffffff'); gradient.addColorStop(.48, '#c7fbff'); gradient.addColorStop(1, '#58a8df');
+      ctx.fillStyle = gradient; ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+
+    function drawOverlay() {
+      if (state === 'playing' && serveTimer <= 0) return;
+      if (state === 'playing') {
+        ctx.textAlign = 'center'; ctx.fillStyle = '#d8fbff'; ctx.font = '700 14px Inter, system-ui';
+        ctx.fillText('СФОКУСИРУЙТЕСЬ', W / 2, H - 91); ctx.textAlign = 'left';
+        return;
+      }
+      ctx.fillStyle = '#040713d1'; ctx.fillRect(0, 0, W, H);
+      ctx.textAlign = 'center'; ctx.font = '900 54px Inter, system-ui';
+      ctx.fillStyle = state === 'won' ? '#9bea75' : state === 'lost' ? '#ff728e' : '#eefcff';
+      ctx.fillText(state === 'won' ? 'ПОЛЕ ОЧИЩЕНО' : state === 'lost' ? 'СИГНАЛ ПОТЕРЯН' : 'ПАУЗА', W / 2, H / 2 - 20);
+      ctx.fillStyle = '#aabbd0'; ctx.font = '500 17px Inter, system-ui';
+      ctx.fillText(state === 'paused' ? 'P — продолжить' : 'R — сыграть заново', W / 2, H / 2 + 31);
+      ctx.textAlign = 'left';
+    }
+
+    function draw(now) {
+      ctx.save();
+      if (shake > 0) ctx.translate(random(-shake, shake), random(-shake, shake));
+      drawBackground(now);
+      drawBricks(now);
+      drawPaddle();
+      for (const particle of particles) {
+        ctx.globalAlpha = clamp(particle.life * 2, 0, 1); ctx.fillStyle = particle.color;
+        ctx.fillRect(particle.x, particle.y, particle.size, particle.size);
+      }
+      ctx.globalAlpha = 1;
+      drawBall();
+      drawOverlay();
+      ctx.restore();
+    }
+
+    function gameLoop(now) {
+      const dt = Math.min((now - lastTime) / 1000, .033);
+      lastTime = now;
+      if (state === 'playing') update(dt);
+      draw(now);
+      requestAnimationFrame(gameLoop);
+    }
+
+    function pointerToGameX(event) {
+      const rect = canvas.getBoundingClientRect();
+      return (event.clientX - rect.left) * W / rect.width;
+    }
+    canvas.addEventListener('pointerdown', (event) => {
+      pointerActive = true;
+      canvas.setPointerCapture(event.pointerId);
+      paddle.x = clamp(pointerToGameX(event) - paddle.w / 2, 14, W - 14 - paddle.w);
+    });
+    canvas.addEventListener('pointermove', (event) => {
+      if (event.pointerType === 'mouse' || pointerActive) paddle.x = clamp(pointerToGameX(event) - paddle.w / 2, 14, W - 14 - paddle.w);
+    });
+    canvas.addEventListener('pointerup', () => { pointerActive = false; });
+    canvas.addEventListener('pointercancel', () => { pointerActive = false; });
+
+    addEventListener('keydown', (event) => {
+      const key = event.key.toLowerCase();
+      if (['arrowleft', 'arrowright', 'p', 'r'].includes(key)) event.preventDefault();
+      if (key === 'r' && !event.repeat) restartGame();
+      if (key === 'p' && !event.repeat && (state === 'playing' || state === 'paused')) {
+        state = state === 'playing' ? 'paused' : 'playing';
+        updateHud();
+      }
+      keys.add(key);
+    });
+    addEventListener('keyup', (event) => keys.delete(event.key.toLowerCase()));
+    addEventListener('blur', () => keys.clear());
+
+    function onDeviceOrientation(event) {
+      if (Number.isFinite(event.gamma)) tiltGamma = event.gamma;
+    }
+
+    async function enableTiltControls() {
+      if (tiltEnabled || tiltRequestPending || !('DeviceOrientationEvent' in window)) return;
+      tiltRequestPending = true;
+      try {
+        const Orientation = window.DeviceOrientationEvent;
+        if (typeof Orientation.requestPermission === 'function') {
+          const permission = await Orientation.requestPermission();
+          if (permission !== 'granted') throw new Error('denied');
         }
+        addEventListener('deviceorientation', onDeviceOrientation);
+        tiltEnabled = true;
+        tiltButton.disabled = true;
+        tiltInfoLabel.textContent = 'Наклон включён';
+      } catch (_) {
+        tiltInfoLabel.textContent = 'Нет разрешения на датчик';
+      } finally {
+        tiltRequestPending = false;
+      }
+    }
 
-        function restartGame() {
-            score = 0;
-            lives = 3;
-            gameOver = false;
-            gameWon = false;
-            createBricks();
-            resetBallAndPaddle();
-        }
+    if (!('DeviceOrientationEvent' in window)) {
+      tiltButton.disabled = true;
+      tiltInfoLabel.textContent = 'Датчик недоступен';
+    } else {
+      tiltInfoLabel.textContent = 'Опциональное управление';
+      tiltButton.addEventListener('click', enableTiltControls);
+    }
 
-        function updateStatus() {
-            if (gameWon) {
-                statusLabel.textContent = `You win! Score: ${score}. Press R to restart.`;
-                return;
-            }
-            if (gameOver) {
-                statusLabel.textContent = `Game over! Score: ${score}. Press R to restart.`;
-                return;
-            }
-            statusLabel.textContent = `Score: ${score} | Lives: ${lives}`;
-        }
-
-        function updateTiltStatusLabel() {
-            if (!("DeviceOrientationEvent" in window)) {
-                tiltInfoLabel.textContent = "Tilt: not supported by this browser";
-                return;
-            }
-
-            if (tiltEnabled) {
-                tiltInfoLabel.textContent = "Tilt: enabled";
-                return;
-            }
-
-            tiltInfoLabel.textContent = "Tilt: tap/click screen once to enable";
-        }
-
-        function drawPaddle() {
-            ctx.fillStyle = "#00e5ff";
-            ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
-        }
-
-        function drawBall() {
-            ctx.beginPath();
-            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-            ctx.fillStyle = "#ffd54f";
-            ctx.fill();
-            ctx.closePath();
-        }
-
-        function drawBricks() {
-            const colors = ["#ef5350", "#ab47bc", "#42a5f5", "#26a69a", "#9ccc65", "#ffa726"];
-            for (let r = 0; r < brickConfig.rows; r++) {
-                for (let c = 0; c < brickConfig.cols; c++) {
-                    const brick = bricks[r][c];
-                    if (!brick.alive) continue;
-
-                    const x = c * (brickConfig.width + brickConfig.padding) + brickConfig.offsetLeft;
-                    const y = r * (brickConfig.height + brickConfig.padding) + brickConfig.offsetTop;
-                    brick.x = x;
-                    brick.y = y;
-
-                    ctx.fillStyle = colors[r % colors.length];
-                    ctx.fillRect(x, y, brickConfig.width, brickConfig.height);
-                }
-            }
-        }
-
-        function handleInput() {
-            if (tiltEnabled) {
-                const normalizedTilt = Math.max(-1, Math.min(1, tiltGamma / maxTiltAngle));
-                paddle.x += normalizedTilt * paddle.speed;
-            }
-
-            if (paddle.movingLeft) {
-                paddle.x -= paddle.speed;
-            }
-            if (paddle.movingRight) {
-                paddle.x += paddle.speed;
-            }
-
-            if (paddle.x < 0) paddle.x = 0;
-            if (paddle.x + paddle.width > canvas.width) {
-                paddle.x = canvas.width - paddle.width;
-            }
-        }
-
-        function handleBallPhysics() {
-            ball.x += ball.dx;
-            ball.y += ball.dy;
-
-            if (ball.x - ball.radius <= 0 || ball.x + ball.radius >= canvas.width) {
-                ball.dx *= -1;
-            }
-            if (ball.y - ball.radius <= 0) {
-                ball.dy *= -1;
-            }
-
-            const hitsPaddleX = ball.x >= paddle.x && ball.x <= paddle.x + paddle.width;
-            const hitsPaddleY = ball.y + ball.radius >= paddle.y && ball.y + ball.radius <= paddle.y + paddle.height;
-            if (hitsPaddleX && hitsPaddleY && ball.dy > 0) {
-                const relativeHit = (ball.x - (paddle.x + paddle.width / 2)) / (paddle.width / 2);
-                ball.dx = relativeHit * 6;
-                ball.dy = -Math.abs(ball.dy);
-            }
-
-            if (ball.y - ball.radius > canvas.height) {
-                lives -= 1;
-                if (lives <= 0) {
-                    gameOver = true;
-                } else {
-                    resetBallAndPaddle();
-                }
-            }
-        }
-
-        function handleBrickCollisions() {
-            for (let r = 0; r < brickConfig.rows; r++) {
-                for (let c = 0; c < brickConfig.cols; c++) {
-                    const brick = bricks[r][c];
-                    if (!brick.alive) continue;
-
-                    if (
-                        ball.x + ball.radius > brick.x &&
-                        ball.x - ball.radius < brick.x + brickConfig.width &&
-                        ball.y + ball.radius > brick.y &&
-                        ball.y - ball.radius < brick.y + brickConfig.height
-                    ) {
-                        brick.alive = false;
-                        ball.dy *= -1;
-                        score += 10;
-
-                        if (score === brickConfig.rows * brickConfig.cols * 10) {
-                            gameWon = true;
-                        }
-                        return;
-                    }
-                }
-            }
-        }
-
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            drawBricks();
-            drawPaddle();
-            drawBall();
-        }
-
-        function gameLoop() {
-            if (!gameOver && !gameWon) {
-                handleInput();
-                handleBallPhysics();
-                handleBrickCollisions();
-            }
-
-            draw();
-            updateStatus();
-            requestAnimationFrame(gameLoop);
-        }
-
-        document.addEventListener("keydown", (event) => {
-            if (event.key === "ArrowLeft") paddle.movingLeft = true;
-            if (event.key === "ArrowRight") paddle.movingRight = true;
-            if (event.key.toLowerCase() === "r") restartGame();
-        });
-
-        document.addEventListener("keyup", (event) => {
-            if (event.key === "ArrowLeft") paddle.movingLeft = false;
-            if (event.key === "ArrowRight") paddle.movingRight = false;
-        });
-
-        function onDeviceOrientation(event) {
-            if (typeof event.gamma !== "number") return;
-            tiltGamma = event.gamma;
-        }
-
-        function enableTiltControls() {
-            if (tiltEnabled || !("DeviceOrientationEvent" in window)) return;
-
-            const requestPermission = DeviceOrientationEvent.requestPermission;
-            if (typeof requestPermission === "function") {
-                requestPermission.call(DeviceOrientationEvent)
-                    .then((permissionState) => {
-                        if (permissionState === "granted") {
-                            window.addEventListener("deviceorientation", onDeviceOrientation);
-                            tiltEnabled = true;
-                            updateTiltStatusLabel();
-                        } else {
-                            tiltInfoLabel.textContent = "Tilt: permission denied";
-                        }
-                    })
-                    .catch(() => {
-                        tiltInfoLabel.textContent = "Tilt: permission error";
-                    });
-            } else {
-                window.addEventListener("deviceorientation", onDeviceOrientation);
-                tiltEnabled = true;
-                updateTiltStatusLabel();
-            }
-        }
-
-        document.addEventListener("click", enableTiltControls, { once: true });
-        document.addEventListener("touchstart", enableTiltControls, { once: true });
-
-        createBricks();
-        updateTiltStatusLabel();
-        gameLoop();
-    </script>
+    restartGame();
+    requestAnimationFrame(gameLoop);
+  </script>
 </body>
 </html>

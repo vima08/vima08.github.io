@@ -1,349 +1,560 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Paper Folding</title>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Paper Folding Lab</title>
     <link rel="icon" href="/favicons/paper-folding.svg" type="image/svg+xml" />
-  <style>
-    :root {
-      color-scheme: dark;
-    }
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #101522;
-      color: #f4f4f4;
-      display: flex;
-      justify-content: center;
-      padding: 16px;
-    }
-    .game {
-      width: min(980px, 100%);
-      background: #1b2338;
-      border: 1px solid #2f3d61;
-      border-radius: 10px;
-      padding: 14px;
-    }
-    .row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-    input[type="number"] {
-      width: 110px;
-      padding: 6px;
-      border-radius: 6px;
-      border: 1px solid #44537d;
-      background: #121a2e;
-      color: #fff;
-    }
-    button {
-      border: 1px solid #44537d;
-      background: #25345b;
-      color: #fff;
-      border-radius: 6px;
-      padding: 7px 10px;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #30477b;
-    }
-    canvas {
-      width: 100%;
-      height: 520px;
-      background: #ffffff;
-      border-radius: 8px;
-      border: 1px solid #2f3d61;
-    }
-    .hint {
-      color: #c9d1e3;
-      margin: 0;
-      font-size: 14px;
-    }
-  </style>
-</head>
-<body>
-  <div class="game">
-    <div class="row">
-      <label for="nInput">n:</label>
-      <input id="nInput" type="number" min="1" max="40" value="8" />
-      <button id="generateBtn">Generate</button>
-      <button id="leftBtn">⬅️ left</button>
-      <button id="rightBtn">➡️ right</button>
-      <button id="upBtn"> ^ fold up</button>
-      <button id="downBtn"> V fold down</button>
-      <span id="status"></span>
-    </div>
-    <p class="hint">Красная линия — верхняя поверхность, чёрная — нижняя. Выбирайте точку сгиба и складывайте правую часть листа, чтобы собирать гармошки.</p>
-    <canvas id="canvas" width="940" height="520"></canvas>
-  </div>
+    <style>
+      :root {
+        color-scheme: dark;
+        --cream: #f3ead8;
+        --coral: #ff725f;
+        --mint: #79e4bd;
+        --ink: #172034;
+        --muted: #a9b3c8;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 22px 12px;
+        background:
+          radial-gradient(circle at 12% 8%, rgba(255, 114, 95, .12), transparent 27rem),
+          radial-gradient(circle at 88% 88%, rgba(121, 228, 189, .1), transparent 30rem),
+          #0b0e17;
+        color: #f6f1e8;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      .game { width: min(1000px, 100%); }
+      header {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 18px;
+        margin: 0 4px 15px;
+      }
+      h1 { margin: 0; font-size: clamp(30px, 5vw, 50px); line-height: .96; letter-spacing: -.055em; }
+      .eyebrow { margin: 0 0 7px; color: var(--coral); font-size: 11px; font-weight: 850; letter-spacing: .22em; text-transform: uppercase; }
+      a { color: #d0c8ff; text-decoration: none; }
+      a:hover { color: white; }
+      .panel {
+        padding: 12px;
+        border: 1px solid rgba(194, 188, 234, .18);
+        border-radius: 20px;
+        background: rgba(19, 23, 38, .88);
+        box-shadow: 0 30px 90px rgba(0,0,0,.52), 0 1px rgba(255,255,255,.04) inset;
+      }
+      .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+      .field {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-right: 4px;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 700;
+      }
+      input[type="number"] {
+        width: 70px;
+        padding: 9px 10px;
+        border: 1px solid rgba(193, 189, 235, .3);
+        border-radius: 10px;
+        outline: none;
+        background: #0d1220;
+        color: #fff;
+        font: 750 14px system-ui, sans-serif;
+      }
+      input[type="number"]:focus { border-color: var(--mint); box-shadow: 0 0 0 3px rgba(121,228,189,.14); }
+      button {
+        min-height: 36px;
+        padding: 8px 12px;
+        border: 1px solid rgba(193, 189, 235, .27);
+        border-radius: 10px;
+        background: linear-gradient(180deg, #333852, #24283d);
+        box-shadow: 0 5px 14px rgba(0,0,0,.2), 0 1px rgba(255,255,255,.08) inset;
+        color: #f8f5ff;
+        cursor: pointer;
+        font: 720 13px/1 system-ui, sans-serif;
+      }
+      button:hover:not(:disabled) { border-color: var(--mint); transform: translateY(-1px); }
+      button:focus-visible { outline: 3px solid var(--mint); outline-offset: 2px; }
+      button:disabled { cursor: not-allowed; opacity: .4; }
+      .fold { color: #fff4ed; border-color: rgba(255,114,95,.35); }
+      #status {
+        margin-left: auto;
+        padding: 7px 10px;
+        border-radius: 999px;
+        background: rgba(8, 11, 20, .58);
+        color: #bec9dc;
+        font-size: 12px;
+        font-weight: 750;
+      }
+      .canvas-wrap { overflow: hidden; border: 1px solid rgba(244, 234, 216, .12); border-radius: 14px; }
+      canvas {
+        display: block;
+        width: 100%;
+        height: auto;
+        background: #ebe2cf;
+        cursor: crosshair;
+        touch-action: manipulation;
+      }
+      .hint {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 20px;
+        margin: 11px 5px 1px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+      .legend { display: inline-flex; align-items: center; gap: 6px; }
+      .swatch { width: 15px; height: 3px; border-radius: 2px; background: var(--coral); box-shadow: 0 0 8px rgba(255,114,95,.5); }
+      .swatch.bottom { background: #172034; box-shadow: none; }
+      @media (max-width: 720px) {
+        header { align-items: start; flex-direction: column; }
+        #status { width: 100%; margin-left: 0; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="game">
+      <header>
+        <div>
+          <p class="eyebrow">Interactive paper mechanics</p>
+          <h1>Folding Lab</h1>
+        </div>
+        <a href="/index.html">← К коллекции</a>
+      </header>
 
-  <script>
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    const nInput = document.getElementById('nInput');
-    const statusEl = document.getElementById('status');
+      <section class="panel">
+        <div class="toolbar">
+          <label class="field" for="nInput">Сгибов
+            <input id="nInput" type="number" min="1" max="40" value="8" inputmode="numeric" />
+          </label>
+          <button id="generateBtn" type="button">Новый лист</button>
+          <button id="leftBtn" type="button" aria-label="Предыдущий сгиб">← Сгиб</button>
+          <button id="rightBtn" type="button" aria-label="Следующий сгиб">Сгиб →</button>
+          <button class="fold" id="upBtn" type="button">↑ Сложить вверх</button>
+          <button class="fold" id="downBtn" type="button">↓ Сложить вниз</button>
+          <button id="undoBtn" type="button">Отменить</button>
+          <span id="status" aria-live="polite"></span>
+        </div>
 
-    const state = {
-      n: 8,
-      selectedCrease: 0,
-      x: [],
-      level: [],
-      flipped: [],
-      animating: false,
-      animation: null,
-      scruffy: false
-    };
+        <div class="canvas-wrap">
+          <canvas id="canvas" width="940" height="520"></canvas>
+        </div>
+        <p class="hint">
+          <span class="legend"><i class="swatch"></i> красная сторона листа</span>
+          <span class="legend"><i class="swatch bottom"></i> тёмная сторона</span>
+          <span>Нажмите на точку сгиба или используйте стрелки. Если слои проходят друг сквозь друга, лист становится SCRUFFY.</span>
+        </p>
+      </section>
+    </main>
 
-    function generate() {
-      const n = Math.max(1, Math.min(40, Math.floor(Number(nInput.value) || 1)));
-      state.n = n;
-      state.selectedCrease = 0;
-      state.x = Array.from({ length: n + 2 }, (_, i) => i);
-      state.level = Array.from({ length: n + 1 }, () => 0);
-      state.flipped = Array.from({ length: n + 1 }, () => false);
-      state.animating = false;
-      state.animation = null;
-      state.scruffy = false;
-      draw();
-    }
+    <script>
+      'use strict';
 
-    function intervalOverlap(a1, a2, b1, b2) {
-      const left = Math.max(Math.min(a1, a2), Math.min(b1, b2));
-      const right = Math.min(Math.max(a1, a2), Math.max(b1, b2));
-      return right > left + 0.00001;
-    }
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+      const nInput = document.getElementById('nInput');
+      const statusEl = document.getElementById('status');
+      const controls = {
+        generate: document.getElementById('generateBtn'),
+        left: document.getElementById('leftBtn'),
+        right: document.getElementById('rightBtn'),
+        up: document.getElementById('upBtn'),
+        down: document.getElementById('downBtn'),
+        undo: document.getElementById('undoBtn'),
+      };
 
-    function isIllegalFold(direction) {
-      const k = state.selectedCrease;
-      const pivot = state.x[k + 1];
-      const base = state.level[k];
-      const moving = [];
-      const fixed = [];
+      const state = {
+        n: 8,
+        selectedCrease: 0,
+        x: [],
+        level: [],
+        flipped: [],
+        animating: false,
+        animation: null,
+        scruffy: false,
+        history: [],
+        creaseHits: [],
+      };
 
-      for (let i = 0; i <= state.n; i++) {
-        const seg = { i, x1: state.x[i], x2: state.x[i + 1], level: state.level[i] };
-        if (i > k) moving.push(seg);
-        else fixed.push(seg);
+      function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+      function easeInOutCubic(t) {
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
       }
 
-      for (const mv of moving) {
-        const startLevel = mv.level;
-        const endLevel = direction === 'up' ? 2 * base - mv.level + 1 : 2 * base - mv.level - 1;
-        const pathMinL = Math.min(startLevel, endLevel);
-        const pathMaxL = Math.max(startLevel, endLevel);
-
-        const endX1 = 2 * pivot - mv.x1;
-        const endX2 = 2 * pivot - mv.x2;
-        const sweepMinX = Math.min(mv.x1, mv.x2, endX1, endX2);
-        const sweepMaxX = Math.max(mv.x1, mv.x2, endX1, endX2);
-
-        for (const fx of fixed) {
-          if (fx.level <= pathMinL + 0.00001 || fx.level >= pathMaxL - 0.00001) continue;
-          if (intervalOverlap(sweepMinX, sweepMaxX, fx.x1, fx.x2)) return true;
-        }
+      function snapshot() {
+        return {
+          selectedCrease: state.selectedCrease,
+          x: [...state.x],
+          level: [...state.level],
+          flipped: [...state.flipped],
+        };
       }
 
-      const xAfter = [...state.x];
-      const levelAfter = [...state.level];
-      for (let i = k + 1; i <= state.n + 1; i++) {
-        xAfter[i] = 2 * pivot - xAfter[i];
-      }
-      for (let s = k + 1; s <= state.n; s++) {
-        if (direction === 'up') {
-          levelAfter[s] = 2 * base - levelAfter[s] + 1;
-        } else {
-          levelAfter[s] = 2 * base - levelAfter[s] - 1;
-        }
-      }
-
-      for (let i = 0; i <= state.n; i++) {
-        for (let j = i + 1; j <= state.n; j++) {
-          if (Math.abs(levelAfter[i] - levelAfter[j]) > 0.00001) continue;
-          if (intervalOverlap(xAfter[i], xAfter[i + 1], xAfter[j], xAfter[j + 1])) return true;
-        }
-      }
-
-      return false;
-    }
-
-    function fold(direction) {
-      if (state.animating || state.scruffy) return;
-
-      if (isIllegalFold(direction)) {
-        state.scruffy = true;
+      function restore(saved) {
+        state.selectedCrease = clamp(saved.selectedCrease, 0, state.n - 1);
+        state.x = [...saved.x];
+        state.level = [...saved.level];
+        state.flipped = [...saved.flipped];
+        state.scruffy = false;
+        state.animating = false;
+        state.animation = null;
         draw();
-        return;
       }
 
-      const k = state.selectedCrease;
-      const pivot = state.x[k + 1];
-      const base = state.level[k];
-      const xBefore = [...state.x];
-      const levelBefore = [...state.level];
-      const flippedBefore = [...state.flipped];
-      const xAfter = [...state.x];
-      const levelAfter = [...state.level];
-      const flippedAfter = [...state.flipped];
-
-      for (let i = k + 1; i <= state.n + 1; i++) {
-        xAfter[i] = 2 * pivot - xAfter[i];
+      function generate() {
+        const n = clamp(Math.floor(Number(nInput.value) || 1), 1, 40);
+        nInput.value = String(n);
+        state.n = n;
+        state.selectedCrease = 0;
+        state.x = Array.from({ length: n + 2 }, (_, index) => index);
+        state.level = Array.from({ length: n + 1 }, () => 0);
+        state.flipped = Array.from({ length: n + 1 }, () => false);
+        state.animating = false;
+        state.animation = null;
+        state.scruffy = false;
+        state.history = [];
+        draw();
       }
 
-      for (let s = k + 1; s <= state.n; s++) {
-        flippedAfter[s] = !flippedAfter[s];
-        if (direction === 'up') {
-          levelAfter[s] = 2 * base - levelAfter[s] + 1;
-        } else {
-          levelAfter[s] = 2 * base - levelAfter[s] - 1;
+      function intervalOverlap(a1, a2, b1, b2) {
+        const left = Math.max(Math.min(a1, a2), Math.min(b1, b2));
+        const right = Math.min(Math.max(a1, a2), Math.max(b1, b2));
+        return right > left + 0.00001;
+      }
+
+      function calculateFold(direction) {
+        const crease = state.selectedCrease;
+        const pivot = state.x[crease + 1];
+        const baseLevel = state.level[crease];
+        const xAfter = [...state.x];
+        const levelAfter = [...state.level];
+        const flippedAfter = [...state.flipped];
+
+        for (let point = crease + 1; point <= state.n + 1; point += 1) {
+          xAfter[point] = 2 * pivot - xAfter[point];
         }
+        for (let segment = crease + 1; segment <= state.n; segment += 1) {
+          flippedAfter[segment] = !flippedAfter[segment];
+          levelAfter[segment] = direction === 'up'
+            ? 2 * baseLevel - levelAfter[segment] + 1
+            : 2 * baseLevel - levelAfter[segment] - 1;
+        }
+        return { crease, pivot, baseLevel, xAfter, levelAfter, flippedAfter };
       }
 
-      state.animating = true;
-      const duration = 320;
-      const start = performance.now();
-      state.animation = { k, xBefore, levelBefore, flippedBefore, xAfter, levelAfter, flippedAfter };
+      function isIllegalFold(direction, result) {
+        const moving = [];
+        const fixed = [];
+        for (let segment = 0; segment <= state.n; segment += 1) {
+          const item = {
+            segment,
+            x1: state.x[segment],
+            x2: state.x[segment + 1],
+            level: state.level[segment],
+          };
+          (segment > result.crease ? moving : fixed).push(item);
+        }
 
-      function tick(now) {
-        if (!state.animation) return;
-        const t = Math.min(1, (now - start) / duration);
-        draw(t);
-        if (t < 1) {
-          requestAnimationFrame(tick);
-        } else {
-          state.x = xAfter;
-          state.level = levelAfter;
-          state.flipped = flippedAfter;
+        // Для программиста: проверяем весь объём «взмаха», а не только конечную позицию слоя.
+        for (const movingSegment of moving) {
+          const endLevel = direction === 'up'
+            ? 2 * result.baseLevel - movingSegment.level + 1
+            : 2 * result.baseLevel - movingSegment.level - 1;
+          const minLevel = Math.min(movingSegment.level, endLevel);
+          const maxLevel = Math.max(movingSegment.level, endLevel);
+          const endX1 = 2 * result.pivot - movingSegment.x1;
+          const endX2 = 2 * result.pivot - movingSegment.x2;
+          const sweepMinX = Math.min(movingSegment.x1, movingSegment.x2, endX1, endX2);
+          const sweepMaxX = Math.max(movingSegment.x1, movingSegment.x2, endX1, endX2);
+
+          for (const fixedSegment of fixed) {
+            if (fixedSegment.level <= minLevel + 0.00001 || fixedSegment.level >= maxLevel - 0.00001) continue;
+            if (intervalOverlap(sweepMinX, sweepMaxX, fixedSegment.x1, fixedSegment.x2)) return true;
+          }
+        }
+
+        // Два слоя не могут занимать одну и ту же высоту и один интервал после сгиба.
+        for (let first = 0; first <= state.n; first += 1) {
+          for (let second = first + 1; second <= state.n; second += 1) {
+            if (Math.abs(result.levelAfter[first] - result.levelAfter[second]) > 0.00001) continue;
+            if (intervalOverlap(
+              result.xAfter[first], result.xAfter[first + 1],
+              result.xAfter[second], result.xAfter[second + 1]
+            )) return true;
+          }
+        }
+        return false;
+      }
+
+      function fold(direction) {
+        if (state.animating || state.scruffy) return;
+        const result = calculateFold(direction);
+        if (isIllegalFold(direction, result)) {
+          state.scruffy = true;
+          draw();
+          return;
+        }
+
+        const before = snapshot();
+        const animation = {
+          crease: result.crease,
+          xBefore: before.x,
+          levelBefore: before.level,
+          flippedBefore: before.flipped,
+          xAfter: result.xAfter,
+          levelAfter: result.levelAfter,
+          flippedAfter: result.flippedAfter,
+        };
+        state.animating = true;
+        state.animation = animation;
+        const startedAt = performance.now();
+        const duration = 430;
+
+        function tick(now) {
+          if (state.animation !== animation) return;
+          const linearProgress = Math.min(1, (now - startedAt) / duration);
+          draw(easeInOutCubic(linearProgress));
+          if (linearProgress < 1) {
+            requestAnimationFrame(tick);
+            return;
+          }
+          state.history.push(before);
+          state.x = animation.xAfter;
+          state.level = animation.levelAfter;
+          state.flipped = animation.flippedAfter;
           state.animating = false;
           state.animation = null;
           draw();
         }
+        requestAnimationFrame(tick);
       }
 
-      requestAnimationFrame(tick);
-    }
-
-    function worldToScreenX(xValue, minX, maxX, pad) {
-      if (Math.abs(maxX - minX) < 0.00001) return canvas.width / 2;
-      const t = (xValue - minX) / (maxX - minX);
-      return pad + t * (canvas.width - 2 * pad);
-    }
-
-    function draw(progress = null) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      const anim = state.animation;
-      const xView = anim && progress !== null ? anim.xBefore.map((x, idx) => x + (anim.xAfter[idx] - x) * progress) : state.x;
-      const levelView = anim && progress !== null ? anim.levelBefore.map((lv, idx) => lv + (anim.levelAfter[idx] - lv) * progress) : state.level;
-
-      const minX = Math.min(...xView);
-      const maxX = Math.max(...xView);
-      const minLevel = Math.min(...levelView);
-      const maxLevel = Math.max(...levelView);
-
-      const pad = 56;
-      const baseY = canvas.height / 2 + ((minLevel + maxLevel) * -11) / 2;
-      const levelStep = 22;
-      const thickness = 6;
-
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = '#d6d6d6';
-      ctx.beginPath();
-      ctx.moveTo(0, canvas.height / 2 + 0.5);
-      ctx.lineTo(canvas.width, canvas.height / 2 + 0.5);
-      ctx.stroke();
-
-      const isMoving = (idx) => anim && progress !== null && idx > anim.k;
-
-      for (let i = 0; i <= state.n; i++) {
-        const x1 = worldToScreenX(xView[i], minX, maxX, pad);
-        const x2 = worldToScreenX(xView[i + 1], minX, maxX, pad);
-        const y = baseY + levelView[i] * levelStep;
-        const moving = isMoving(i);
-
-        const flipNow = moving && progress !== null && progress >= 0.5
-          ? !anim.flippedBefore[i]
-          : (anim && progress !== null ? anim.flippedBefore[i] : state.flipped[i]);
-
-        const topShift = flipNow ? thickness / 2 : -thickness / 2;
-        const bottomShift = -topShift;
-
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = moving ? '#ff8a65' : '#ff4d4d';
-        ctx.beginPath();
-        ctx.moveTo(x1, y + topShift);
-        ctx.lineTo(x2, y + topShift);
-        ctx.stroke();
-
-        ctx.strokeStyle = moving ? '#555' : '#111';
-        ctx.beginPath();
-        ctx.moveTo(x1, y + bottomShift);
-        ctx.lineTo(x2, y + bottomShift);
-        ctx.stroke();
-
-        ctx.fillStyle = '#222';
-        ctx.font = '13px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(String(i), (x1 + x2) / 2, y - 10);
+      function undo() {
+        if (state.animating) return;
+        if (state.scruffy) {
+          // Неверный сгиб не меняет геометрию: «Отменить» просто возвращает игрока в эксперимент.
+          state.scruffy = false;
+          draw();
+          return;
+        }
+        const previous = state.history.pop();
+        if (previous) restore(previous);
       }
 
-      for (let c = 0; c < state.n; c++) {
-        const cx = worldToScreenX(xView[c + 1], minX, maxX, pad);
-        const cy = baseY + ((levelView[c] + levelView[c + 1]) / 2) * levelStep;
-        ctx.fillStyle = c === state.selectedCrease ? '#ffe066' : '#8ea2d3';
+      function selectCrease(index) {
+        if (state.animating || state.scruffy) return;
+        state.selectedCrease = clamp(index, 0, state.n - 1);
+        draw();
+      }
+
+      function worldToScreenX(value, minX, maxX, padding) {
+        if (Math.abs(maxX - minX) < 0.00001) return canvas.width / 2;
+        return padding + ((value - minX) / (maxX - minX)) * (canvas.width - padding * 2);
+      }
+
+      function drawDesk() {
+        const background = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+        background.addColorStop(0, '#f1eadc');
+        background.addColorStop(1, '#d9cdb8');
+        ctx.fillStyle = background;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.strokeStyle = 'rgba(64, 76, 91, .055)';
+        ctx.lineWidth = 1;
+        for (let x = 20; x < canvas.width; x += 28) {
+          ctx.beginPath();
+          ctx.moveTo(x + .5, 0);
+          ctx.lineTo(x + .5, canvas.height);
+          ctx.stroke();
+        }
+        for (let y = 18; y < canvas.height; y += 28) {
+          ctx.beginPath();
+          ctx.moveTo(0, y + .5);
+          ctx.lineTo(canvas.width, y + .5);
+          ctx.stroke();
+        }
+
+        ctx.fillStyle = 'rgba(28, 37, 51, .42)';
+        ctx.font = '800 11px system-ui';
+        ctx.letterSpacing = '2px';
+        ctx.fillText('FOLDING SURFACE · SELECT A CREASE', 26, 34);
+      }
+
+      function drawSegment(x1, x2, y, flipped, moving, index) {
+        const left = Math.min(x1, x2);
+        const width = Math.max(1, Math.abs(x2 - x1));
+        const topColor = flipped ? '#182238' : (moving ? '#ff9a7d' : '#ff725f');
+        const bottomColor = flipped ? (moving ? '#ff9a7d' : '#ff725f') : '#182238';
+
+        ctx.save();
+        ctx.shadowColor = 'rgba(21, 25, 35, .22)';
+        ctx.shadowBlur = 13;
+        ctx.shadowOffsetY = 7;
+        const paperGradient = ctx.createLinearGradient(left, y - 9, left, y + 9);
+        paperGradient.addColorStop(0, topColor);
+        paperGradient.addColorStop(.48, topColor);
+        paperGradient.addColorStop(.52, bottomColor);
+        paperGradient.addColorStop(1, bottomColor);
+        ctx.fillStyle = paperGradient;
         ctx.beginPath();
-        ctx.arc(cx, cy, c === state.selectedCrease ? 6 : 4, 0, Math.PI * 2);
+        ctx.moveTo(x1, y - 7);
+        ctx.lineTo(x2, y - 7);
+        ctx.lineTo(x2, y + 7);
+        ctx.lineTo(x1, y + 7);
+        ctx.closePath();
         ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = 'rgba(255, 255, 255, .36)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x1, y - 6.5);
+        ctx.lineTo(x2, y - 6.5);
+        ctx.stroke();
+
+        if (width > 24) {
+          ctx.fillStyle = flipped ? 'rgba(255,255,255,.7)' : 'rgba(31, 34, 47, .68)';
+          ctx.font = '750 11px system-ui';
+          ctx.textAlign = 'center';
+          ctx.fillText(String(index + 1), (x1 + x2) / 2, y - 14);
+        }
+        ctx.restore();
       }
 
-      if (state.scruffy) {
-        ctx.fillStyle = '#d90429';
-        ctx.font = 'bold 64px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('SCRUFFY', canvas.width / 2, canvas.height / 2);
-        statusEl.textContent = 'SCRUFFY: illegal fold (paper would pass through itself)';
-      } else {
-        statusEl.textContent = state.animating
-          ? `selected crease: ${state.selectedCrease + 1} (folding...)`
-          : `selected crease: ${state.selectedCrease + 1}`;
+      function syncControls() {
+        controls.left.disabled = state.animating || state.scruffy || state.selectedCrease === 0;
+        controls.right.disabled = state.animating || state.scruffy || state.selectedCrease === state.n - 1;
+        controls.up.disabled = state.animating || state.scruffy;
+        controls.down.disabled = state.animating || state.scruffy;
+        controls.undo.disabled = state.animating || (!state.scruffy && state.history.length === 0);
       }
-    }
 
-    document.getElementById('generateBtn').addEventListener('click', generate);
-    document.getElementById('leftBtn').addEventListener('click', () => {
-      if (state.animating || state.scruffy) return;
-      state.selectedCrease = Math.max(0, state.selectedCrease - 1);
-      draw();
-    });
-    document.getElementById('rightBtn').addEventListener('click', () => {
-      if (state.animating || state.scruffy) return;
-      state.selectedCrease = Math.min(state.n - 1, state.selectedCrease + 1);
-      draw();
-    });
-    document.getElementById('upBtn').addEventListener('click', () => fold('up'));
-    document.getElementById('downBtn').addEventListener('click', () => fold('down'));
+      function draw(progress = null) {
+        drawDesk();
+        const animation = state.animation;
+        const animatingView = animation && progress !== null;
+        const xView = animatingView
+          ? animation.xBefore.map((value, index) => value + (animation.xAfter[index] - value) * progress)
+          : state.x;
+        const levelView = animatingView
+          ? animation.levelBefore.map((value, index) => value + (animation.levelAfter[index] - value) * progress)
+          : state.level;
 
-    window.addEventListener('keydown', (e) => {
-      if (state.animating || state.scruffy) return;
-      if (e.key === 'ArrowLeft') {
-        state.selectedCrease = Math.max(0, state.selectedCrease - 1);
-        draw();
-      } else if (e.key === 'ArrowRight') {
-        state.selectedCrease = Math.min(state.n - 1, state.selectedCrease + 1);
-        draw();
-      } else if (e.key === 'ArrowUp') {
-        fold('up');
-      } else if (e.key === 'ArrowDown') {
-        fold('down');
+        const minX = Math.min(...xView);
+        const maxX = Math.max(...xView);
+        const minLevel = Math.min(...levelView);
+        const maxLevel = Math.max(...levelView);
+        const padding = 58;
+        const levelRange = Math.max(1, maxLevel - minLevel);
+        // Для программиста: шаг слоя динамический — даже 40 сегментов больше не вылезают за canvas.
+        const levelStep = Math.min(27, 290 / (levelRange + 2));
+        const baseY = canvas.height / 2 - ((minLevel + maxLevel) * levelStep) / 2;
+
+        ctx.strokeStyle = 'rgba(36, 47, 63, .16)';
+        ctx.setLineDash([5, 7]);
+        ctx.beginPath();
+        ctx.moveTo(24, canvas.height / 2 + .5);
+        ctx.lineTo(canvas.width - 24, canvas.height / 2 + .5);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const movingSegment = (index) => animatingView && index > animation.crease;
+        const drawOrder = Array.from({ length: state.n + 1 }, (_, index) => index)
+          .sort((a, b) => levelView[a] - levelView[b]);
+        for (const index of drawOrder) {
+          const x1 = worldToScreenX(xView[index], minX, maxX, padding);
+          const x2 = worldToScreenX(xView[index + 1], minX, maxX, padding);
+          const y = baseY + levelView[index] * levelStep;
+          let flipped = animatingView ? animation.flippedBefore[index] : state.flipped[index];
+          if (movingSegment(index) && progress >= .5) flipped = !flipped;
+          drawSegment(x1, x2, y, flipped, movingSegment(index), index);
+        }
+
+        state.creaseHits = [];
+        for (let crease = 0; crease < state.n; crease += 1) {
+          const x = worldToScreenX(xView[crease + 1], minX, maxX, padding);
+          const y = baseY + ((levelView[crease] + levelView[crease + 1]) / 2) * levelStep;
+          const selected = crease === state.selectedCrease;
+          state.creaseHits.push({ x, y });
+          ctx.save();
+          if (selected) {
+            ctx.shadowColor = '#f0b73e';
+            ctx.shadowBlur = 15;
+            ctx.fillStyle = '#ffd66b';
+          } else {
+            ctx.fillStyle = 'rgba(56, 76, 105, .72)';
+          }
+          ctx.translate(x, y);
+          ctx.rotate(Math.PI / 4);
+          ctx.fillRect(selected ? -7 : -4, selected ? -7 : -4, selected ? 14 : 8, selected ? 14 : 8);
+          ctx.restore();
+        }
+
+        if (state.scruffy) {
+          ctx.fillStyle = 'rgba(19, 20, 29, .78)';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.textAlign = 'center';
+          ctx.fillStyle = '#ff725f';
+          ctx.font = '900 64px system-ui';
+          ctx.fillText('SCRUFFY', canvas.width / 2, canvas.height / 2 - 8);
+          ctx.fillStyle = '#f2e9dc';
+          ctx.font = '600 16px system-ui';
+          ctx.fillText('Слои пересеклись · нажмите «Отменить»', canvas.width / 2, canvas.height / 2 + 29);
+          ctx.textAlign = 'left';
+          statusEl.textContent = 'Недопустимый сгиб';
+        } else if (state.animating) {
+          statusEl.textContent = `Сгиб ${state.selectedCrease + 1} · складываем…`;
+        } else {
+          statusEl.textContent = `Сгиб ${state.selectedCrease + 1} из ${state.n}`;
+        }
+        syncControls();
       }
-    });
 
-    generate();
-  </script>
-</body>
+      controls.generate.addEventListener('click', generate);
+      controls.left.addEventListener('click', () => selectCrease(state.selectedCrease - 1));
+      controls.right.addEventListener('click', () => selectCrease(state.selectedCrease + 1));
+      controls.up.addEventListener('click', () => fold('up'));
+      controls.down.addEventListener('click', () => fold('down'));
+      controls.undo.addEventListener('click', undo);
+      nInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') generate();
+      });
+
+      canvas.addEventListener('pointerdown', (event) => {
+        if (state.animating || state.scruffy) return;
+        const bounds = canvas.getBoundingClientRect();
+        const x = (event.clientX - bounds.left) * (canvas.width / bounds.width);
+        const y = (event.clientY - bounds.top) * (canvas.height / bounds.height);
+        let closest = -1;
+        let closestDistance = 24;
+        state.creaseHits.forEach((hit, index) => {
+          const distance = Math.hypot(x - hit.x, y - hit.y);
+          if (distance < closestDistance) {
+            closest = index;
+            closestDistance = distance;
+          }
+        });
+        // Для геймдизайнера: прямой выбор точки на листе снижает лишние действия на больших схемах.
+        if (closest >= 0) selectCrease(closest);
+      });
+
+      window.addEventListener('keydown', (event) => {
+        if (event.target === nInput || state.animating) return;
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) event.preventDefault();
+        if (event.key === 'ArrowLeft') selectCrease(state.selectedCrease - 1);
+        else if (event.key === 'ArrowRight') selectCrease(state.selectedCrease + 1);
+        else if (event.key === 'ArrowUp') fold('up');
+        else if (event.key === 'ArrowDown') fold('down');
+        else if (event.key.toLowerCase() === 'z') undo();
+      });
+
+      generate();
+    </script>
+  </body>
 </html>

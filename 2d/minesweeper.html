@@ -3,157 +3,325 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Minesweeper</title>
+    <title>Minesweeper — Mossfield</title>
     <link rel="icon" href="/favicons/minesweeper.svg" type="image/svg+xml" />
     <style>
+      :root { color-scheme: dark; --ink: #f0fff3; --muted: #9bb4a0; --moss: #78dc8c; --cell-gap: 4px; }
+      * { box-sizing: border-box; }
       body {
-        font-family: Arial, sans-serif;
-        background: #111;
-        color: #fff;
-        text-align: center;
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at 18% 12%, rgba(65, 155, 94, .25), transparent 34rem),
+          radial-gradient(circle at 88% 90%, rgba(150, 108, 55, .14), transparent 28rem),
+          #07110d;
+        color: var(--ink);
+        font-family: Inter, "Segoe UI", sans-serif;
       }
-
+      main { width: min(94vw, 540px); padding: 26px 0; text-align: center; }
+      .eyebrow { margin: 0; color: #9ff2ac; font-size: .7rem; font-weight: 900; letter-spacing: .25em; text-transform: uppercase; }
+      h1 { margin: 2px 0 6px; font-size: clamp(2.4rem, 10vw, 4.5rem); line-height: 1; letter-spacing: -.07em; }
+      .subtitle { margin: 0 0 15px; color: var(--muted); font-size: .85rem; }
+      .console {
+        padding: 12px;
+        border: 1px solid rgba(143, 229, 158, .22);
+        border-radius: 24px;
+        background: linear-gradient(145deg, rgba(28, 48, 35, .92), rgba(13, 25, 18, .95));
+        box-shadow: 0 30px 80px rgba(0,0,0,.54), inset 0 1px rgba(255,255,255,.07);
+      }
+      .hud {
+        display: grid;
+        grid-template-columns: 1fr 2fr 1fr;
+        align-items: center;
+        gap: 8px;
+        padding: 3px 5px 12px;
+      }
+      .meter { color: #88a58e; font-size: .62rem; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
+      .meter strong { display: block; margin-top: 2px; color: white; font-size: 1.12rem; font-variant-numeric: tabular-nums; letter-spacing: .03em; }
+      #status { color: #dff7e4; font-size: .79rem; font-weight: 750; }
       .board {
         display: grid;
-        grid-template-columns: repeat(10, 32px);
-        gap: 2px;
-        justify-content: center;
+        grid-template-columns: repeat(10, minmax(0, 1fr));
+        gap: var(--cell-gap);
+        width: 100%;
+        padding: 6px;
+        border-radius: 16px;
+        background:
+          linear-gradient(rgba(255,255,255,.025), rgba(0,0,0,.08)),
+          #08150e;
+        box-shadow: inset 0 10px 30px rgba(0,0,0,.36);
       }
-
       .cell {
-        width: 32px;
-        height: 32px;
-        background: #555;
-        line-height: 32px;
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 100%;
+        min-width: 0;
+        aspect-ratio: 1;
+        padding: 0;
+        border: 1px solid rgba(203,255,211,.1);
+        border-radius: 8px;
+        background:
+          radial-gradient(circle at 34% 28%, rgba(255,255,255,.12), transparent 22%),
+          linear-gradient(145deg, #315d3d, #1d3e29);
+        box-shadow: 0 3px 0 #10291a, inset 0 1px rgba(255,255,255,.08);
+        color: #effff2;
+        font: 850 clamp(.72rem, 3.5vw, 1.16rem)/1 Inter, sans-serif;
         cursor: pointer;
-        font-weight: bold;
+        user-select: none;
+        touch-action: manipulation;
+        transition: transform 100ms ease, filter 120ms ease;
       }
-
-      .open {
-        background: #ddd;
-        color: #111;
+      .cell:not(:disabled):not(.open):hover { filter: brightness(1.2); transform: translateY(-1px); }
+      .cell:focus-visible, #resetButton:focus-visible { outline: 3px solid #fff; outline-offset: 2px; z-index: 2; }
+      .cell.open {
+        border-color: rgba(36, 65, 41, .38);
+        background:
+          radial-gradient(circle at 25% 25%, rgba(255,255,255,.26), transparent 23%),
+          linear-gradient(145deg, #dce7d4, #b5c9ae);
+        box-shadow: inset 0 1px 4px rgba(34, 52, 34, .23);
+        cursor: default;
       }
-
-      .mine {
-        background: #c00;
-        color: #fff;
+      .cell.flagged { color: #ffd77c; text-shadow: 0 2px 8px rgba(255,173,40,.35); }
+      .cell.mine { color: #fff1dc; background: radial-gradient(circle at 35% 30%, #ff9673, #be2e36 63%, #691823); box-shadow: 0 0 16px rgba(255,62,78,.34); }
+      .cell.wrong { color: #ff7488; background: #3a2429; }
+      .n1 { color: #2763b5; } .n2 { color: #197545; } .n3 { color: #c73f3d; } .n4 { color: #6343a8; }
+      .n5 { color: #8e3b27; } .n6 { color: #17767a; } .n7 { color: #24242b; } .n8 { color: #656565; }
+      #resetButton {
+        margin-top: 15px;
+        padding: 10px 20px;
+        border: 1px solid rgba(139, 231, 155, .34);
+        border-radius: 999px;
+        background: rgba(51, 93, 61, .66);
+        color: var(--ink);
+        font: inherit;
+        font-weight: 800;
+        cursor: pointer;
       }
+      #resetButton:hover { background: rgba(70, 126, 82, .72); }
+      @media (max-width: 410px) { :root { --cell-gap: 2px; } .console { padding: 7px; } .board { padding: 4px; } .cell { border-radius: 5px; } }
     </style>
   </head>
   <body>
-    <h1>Minesweeper</h1>
-    <p>Left click to reveal. Find all safe cells.</p>
-    <div id="status"></div>
-    <div class="board" id="board"></div>
+    <main>
+      <p class="eyebrow">Mossfield survey</p>
+      <h1>Minesweeper</h1>
+      <p class="subtitle">Click to reveal · right-click, Shift-click or hold to mark</p>
+      <section class="console" aria-label="Minesweeper game">
+        <div class="hud" aria-live="polite">
+          <span class="meter">Mines<strong id="mineCount">15</strong></span>
+          <span id="status">Choose your first tile</span>
+          <span class="meter">Time<strong id="timeValue">0:00</strong></span>
+        </div>
+        <div class="board" id="board" role="grid" aria-label="Minefield"></div>
+      </section>
+      <button id="resetButton" type="button">New field</button>
+    </main>
 
     <script>
       const WIDTH = 10;
       const HEIGHT = 10;
       const MINES = 15;
-
       const boardEl = document.getElementById('board');
       const statusEl = document.getElementById('status');
+      const mineCountEl = document.getElementById('mineCount');
+      const timeValueEl = document.getElementById('timeValue');
+      const resetButton = document.getElementById('resetButton');
 
       let cells = [];
+      let state = 'ready';
+      let minesPlaced = false;
+      let startedAt = 0;
+      let elapsedSeconds = 0;
+      let clockId = null;
+      let holdTimer = null;
+      let suppressClickUntil = 0;
+
+      function neighbors(index) {
+        const x = index % WIDTH;
+        const y = Math.floor(index / WIDTH);
+        const result = [];
+        for (let dy = -1; dy <= 1; dy += 1) {
+          for (let dx = -1; dx <= 1; dx += 1) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT) result.push(ny * WIDTH + nx);
+          }
+        }
+        return result;
+      }
+
+      function placeMines(firstIndex) {
+        // Для геймдизайнера: первая клетка и её окружение безопасны. Игрок всегда
+        // начинает с осмысленного участка, а не проигрывает от чистой случайности.
+        const protectedCells = new Set([firstIndex, ...neighbors(firstIndex)]);
+        const candidates = cells.map((_, index) => index).filter((index) => !protectedCells.has(index));
+        for (let i = candidates.length - 1; i > 0; i -= 1) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+        }
+        candidates.slice(0, MINES).forEach((index) => { cells[index].isMine = true; });
+        cells.forEach((cell, index) => {
+          cell.nearbyMines = neighbors(index).filter((neighbor) => cells[neighbor].isMine).length;
+        });
+        minesPlaced = true;
+      }
+
+      function startClock() {
+        if (clockId) clearInterval(clockId);
+        startedAt = Date.now();
+        clockId = setInterval(() => {
+          if (state !== 'playing') return;
+          elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
+          updateClock();
+        }, 250);
+      }
+
+      function updateClock() {
+        const minutes = Math.floor(elapsedSeconds / 60);
+        const seconds = String(elapsedSeconds % 60).padStart(2, '0');
+        timeValueEl.textContent = `${minutes}:${seconds}`;
+      }
 
       function init() {
-        cells = Array.from({ length: WIDTH * HEIGHT }, () => ({
-          isMine: false,
-          isOpen: false,
-          nearbyMines: 0,
-        }));
-
-        for (let i = 0; i < MINES; i += 1) {
-          let pos;
-          do {
-            pos = Math.floor(Math.random() * cells.length);
-          } while (cells[pos].isMine);
-          cells[pos].isMine = true;
-        }
-
-        for (let i = 0; i < cells.length; i += 1) {
-          const x = i % WIDTH;
-          const y = Math.floor(i / WIDTH);
-          let count = 0;
-
-          for (let dy = -1; dy <= 1; dy += 1) {
-            for (let dx = -1; dx <= 1; dx += 1) {
-              if (dx === 0 && dy === 0) continue;
-              const nx = x + dx;
-              const ny = y + dy;
-
-              if (nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT) {
-                if (cells[ny * WIDTH + nx].isMine) count += 1;
-              }
-            }
-          }
-
-          cells[i].nearbyMines = count;
-        }
-
-        statusEl.textContent = '';
+        if (clockId) clearInterval(clockId);
+        cells = Array.from({ length: WIDTH * HEIGHT }, () => ({ isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 }));
+        state = 'ready';
+        minesPlaced = false;
+        elapsedSeconds = 0;
+        clockId = null;
+        statusEl.textContent = 'Choose your first tile';
+        updateClock();
         render();
       }
 
-      function openCell(index) {
-        if (cells[index].isOpen) return;
-
-        cells[index].isOpen = true;
-
-        if (cells[index].isMine) {
-          statusEl.textContent = 'Game over';
-          cells.forEach((cell) => {
-            cell.isOpen = true;
-          });
-          render();
-          return;
-        }
-
-        if (cells[index].nearbyMines === 0) {
-          const x = index % WIDTH;
-          const y = Math.floor(index / WIDTH);
-
-          for (let dy = -1; dy <= 1; dy += 1) {
-            for (let dx = -1; dx <= 1; dx += 1) {
-              const nx = x + dx;
-              const ny = y + dy;
-              if (nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT) {
-                openCell(ny * WIDTH + nx);
-              }
-            }
+      function floodOpen(startIndexes) {
+        // Для программиста: раскрытие пустой области — итеративный flood fill.
+        // Один render после обхода заменяет десятки вложенных перерисовок и не рискует переполнить стек.
+        const queue = [...startIndexes];
+        const visited = new Set();
+        while (queue.length) {
+          const index = queue.shift();
+          if (visited.has(index)) continue;
+          visited.add(index);
+          const cell = cells[index];
+          if (cell.isOpen || cell.isFlagged || cell.isMine) continue;
+          cell.isOpen = true;
+          if (cell.nearbyMines === 0) {
+            neighbors(index).forEach((neighbor) => {
+              if (!visited.has(neighbor) && !cells[neighbor].isMine) queue.push(neighbor);
+            });
           }
         }
+      }
 
-        render();
+      function finishLoss(explodedIndex) {
+        state = 'lost';
+        if (clockId) clearInterval(clockId);
+        cells.forEach((cell) => { if (cell.isMine) cell.isOpen = true; });
+        cells[explodedIndex].exploded = true;
+        statusEl.textContent = 'Survey failed';
+      }
 
-        const unopenedSafeCells = cells.filter((cell) => !cell.isMine && !cell.isOpen).length;
-        if (unopenedSafeCells === 0) {
-          statusEl.textContent = 'You win!';
+      function checkWin() {
+        if (cells.every((cell) => cell.isMine || cell.isOpen)) {
+          state = 'won';
+          if (clockId) clearInterval(clockId);
+          cells.forEach((cell) => { if (cell.isMine) cell.isFlagged = true; });
+          statusEl.textContent = 'Field cleared!';
         }
+      }
+
+      function chordOpen(index) {
+        const adjacent = neighbors(index);
+        const flags = adjacent.filter((neighbor) => cells[neighbor].isFlagged).length;
+        if (flags !== cells[index].nearbyMines) return;
+        const targets = adjacent.filter((neighbor) => !cells[neighbor].isFlagged && !cells[neighbor].isOpen);
+        const mine = targets.find((neighbor) => cells[neighbor].isMine);
+        if (mine !== undefined) finishLoss(mine);
+        else floodOpen(targets);
+      }
+
+      function openCell(index) {
+        if (state === 'won' || state === 'lost' || cells[index].isFlagged) return;
+        if (!minesPlaced) {
+          placeMines(index);
+          state = 'playing';
+          statusEl.textContent = 'Survey in progress';
+          startClock();
+        }
+
+        if (cells[index].isOpen) chordOpen(index);
+        else if (cells[index].isMine) finishLoss(index);
+        else floodOpen([index]);
+
+        if (state === 'playing') checkWin();
+        render();
+      }
+
+      function toggleFlag(index) {
+        if (state === 'won' || state === 'lost' || cells[index].isOpen) return;
+        cells[index].isFlagged = !cells[index].isFlagged;
+        render();
       }
 
       function render() {
         boardEl.innerHTML = '';
+        const flagCount = cells.filter((cell) => cell.isFlagged).length;
+        mineCountEl.textContent = String(MINES - flagCount);
 
         cells.forEach((cell, index) => {
-          const cellEl = document.createElement('div');
+          const cellEl = document.createElement('button');
+          cellEl.type = 'button';
           cellEl.className = 'cell';
+          cellEl.setAttribute('role', 'gridcell');
+          let label = 'covered';
 
           if (cell.isOpen) {
             cellEl.classList.add('open');
             if (cell.isMine) {
               cellEl.classList.add('mine');
-              cellEl.textContent = '*';
-            } else {
-              cellEl.textContent = cell.nearbyMines || '';
-            }
+              cellEl.textContent = '✹';
+              label = 'mine';
+            } else if (cell.nearbyMines) {
+              cellEl.classList.add(`n${cell.nearbyMines}`);
+              cellEl.textContent = String(cell.nearbyMines);
+              label = `${cell.nearbyMines} nearby mines`;
+            } else label = 'empty';
+          } else if (cell.isFlagged) {
+            cellEl.classList.add('flagged');
+            cellEl.textContent = '⚑';
+            label = 'flagged';
+            if (state === 'lost' && !cell.isMine) cellEl.classList.add('wrong');
           }
 
-          cellEl.addEventListener('click', () => openCell(index));
+          if (cell.exploded) cellEl.classList.add('mine');
+          cellEl.disabled = state === 'won' || state === 'lost';
+          cellEl.setAttribute('aria-label', `Row ${Math.floor(index / WIDTH) + 1}, column ${(index % WIDTH) + 1}: ${label}`);
+          cellEl.addEventListener('click', (event) => {
+            if (Date.now() < suppressClickUntil) return;
+            if (event.shiftKey) toggleFlag(index); else openCell(index);
+          });
+          cellEl.addEventListener('contextmenu', (event) => { event.preventDefault(); toggleFlag(index); });
+          cellEl.addEventListener('pointerdown', (event) => {
+            if (event.pointerType === 'mouse') return;
+            holdTimer = setTimeout(() => {
+              toggleFlag(index);
+              suppressClickUntil = Date.now() + 650;
+            }, 480);
+          });
+          const cancelHold = () => { if (holdTimer) clearTimeout(holdTimer); holdTimer = null; };
+          cellEl.addEventListener('pointerup', cancelHold);
+          cellEl.addEventListener('pointercancel', cancelHold);
+          cellEl.addEventListener('pointerleave', cancelHold);
           boardEl.appendChild(cellEl);
         });
       }
 
+      resetButton.addEventListener('click', init);
       init();
     </script>
   </body>

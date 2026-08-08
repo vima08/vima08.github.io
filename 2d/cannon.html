@@ -1,113 +1,408 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Worms-like Game</title>
-    <link rel="icon" href="/favicons/cannon.svg" type="image/svg+xml" />
-    <style>
-        body { text-align: center; background-color: black; color: white; }
-        canvas { background-color: lightblue; display: block; margin: auto; }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Полевое орудие — Ballistic Ridge</title>
+  <link rel="icon" href="/favicons/cannon.svg" type="image/svg+xml">
+  <style>
+    :root { color-scheme: dark; --gold: #ffc85a; --ink: #07111b; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: grid; place-items: center;
+      color: #edf5f4; font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      background: radial-gradient(circle at 50% 12%, #304654, #101923 55%, #060a0e);
+    }
+    main { width: min(1120px, 100%); padding: clamp(12px, 2.5vw, 28px); }
+    header { display: flex; justify-content: space-between; align-items: end; gap: 20px; margin-bottom: 12px; }
+    h1 { margin: 0; font-size: clamp(24px, 4vw, 40px); letter-spacing: -.035em; }
+    h1 span { color: var(--gold); }
+    .stats { display: flex; gap: 10px; flex-wrap: wrap; justify-content: end; }
+    .chip { min-width: 98px; padding: 7px 11px; border: 1px solid #ffffff18; border-radius: 10px; background: #07111bbd; color: #aebbc4; font-size: 12px; }
+    .chip strong { display: block; margin-top: 1px; color: #fff3d1; font-size: 17px; }
+    .frame { padding: 1px; border-radius: 20px; background: linear-gradient(135deg, #f9c861aa, #ffffff12 55%, #8bbfd0aa); box-shadow: 0 28px 80px #000b; }
+    canvas { display: block; width: 100%; height: auto; border-radius: 19px; touch-action: none; }
+    .help { margin: 12px 2px 0; color: #a7b3bb; font-size: 13px; line-height: 1.7; }
+    kbd { padding: 2px 7px; border: 1px solid #44525b; border-bottom-width: 2px; border-radius: 6px; background: #121b22; color: #ffe6a6; }
+    @media (max-width: 680px) { header { align-items: start; flex-direction: column; } .stats { justify-content: start; } }
+  </style>
 </head>
 <body>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
-    <script>
-        const canvas = document.getElementById("gameCanvas");
-        const ctx = canvas.getContext("2d");
-		canvas.width = window.innerWidth - 100;
-        canvas.height = window.innerHeight - 100;
+  <main>
+    <header>
+      <h1>BALLISTIC <span>RIDGE</span></h1>
+      <div class="stats">
+        <div class="chip">УГОЛ<strong id="angleValue">45°</strong></div>
+        <div class="chip">МОЩНОСТЬ<strong id="powerValue">5 / 9</strong></div>
+        <div class="chip">ПОПАДАНИЯ<strong id="scoreValue">0</strong></div>
+      </div>
+    </header>
+    <div class="frame">
+      <canvas id="gameCanvas" width="1000" height="600" aria-label="Артиллерийский полигон"></canvas>
+    </div>
+    <div class="help">
+      <kbd>↑</kbd> <kbd>↓</kbd> угол · <kbd>←</kbd> <kbd>→</kbd> мощность · <kbd>Пробел</kbd> огонь ·
+      клавиши <kbd>1</kbd>–<kbd>9</kbd> выбирают мощность и стреляют · <kbd>R</kbd> очистить полигон
+    </div>
+  </main>
 
-        let gun = { x: 50, y: canvas.height - 50, angle: Math.PI / 4 };
-        let bullet = null;
-        let craters = []; // Список кратеров
-        let explosion = null;
-        const gravity = 0.2;
-        const groundHeight = 50;
+  <script>
+    'use strict';
 
-        function drawGround() {
-            ctx.fillStyle = "green";
-            ctx.fillRect(0, canvas.height - groundHeight, canvas.width, groundHeight);
-            ctx.fillStyle = "lightblue";
-            // Отрисовываем все кратеры
-            craters.forEach(crater => {
-                ctx.beginPath();
-                ctx.arc(crater.x, crater.y, crater.radius, 0, Math.PI * 2);
-                ctx.fill();
-            });
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const angleValue = document.getElementById('angleValue');
+    const powerValue = document.getElementById('powerValue');
+    const scoreValue = document.getElementById('scoreValue');
+    const W = canvas.width;
+    const H = canvas.height;
+    const GROUND_Y = H - 92;
+    const GRAVITY = 330;
+
+    const gun = { x: 86, y: GROUND_Y - 8, angle: Math.PI / 4, power: 5 };
+    const keys = new Set();
+    const craters = [];
+    const particles = [];
+    const smoke = [];
+    let projectile = null;
+    let explosion = null;
+    let targets = [];
+    let score = 0;
+    let range = 1;
+    let nextRangeTimer = 0;
+    let shake = 0;
+    let lastTime = performance.now();
+
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const random = (min, max) => min + Math.random() * (max - min);
+    const shotSpeed = () => 220 + gun.power * 55;
+
+    function updateHud() {
+      angleValue.textContent = `${Math.round(gun.angle * 180 / Math.PI)}°`;
+      const displayedPower = Number.isInteger(gun.power) ? gun.power : gun.power.toFixed(1);
+      powerValue.textContent = `${displayedPower} / 9`;
+      scoreValue.textContent = score;
+    }
+
+    function createTargets() {
+      const positions = [590, 735, 875];
+      targets = positions.map((x, index) => ({
+        x: x + random(-20, 20),
+        y: GROUND_Y - 42 - index * 5,
+        w: 34,
+        h: 42 + index * 5,
+        alive: true,
+        tilt: random(-.04, .04)
+      }));
+      nextRangeTimer = 0;
+    }
+
+    function resetRange() {
+      projectile = null;
+      explosion = null;
+      craters.length = 0;
+      particles.length = 0;
+      smoke.length = 0;
+      score = 0;
+      range = 1;
+      createTargets();
+      updateHud();
+    }
+
+    function muzzlePosition() {
+      return {
+        x: gun.x + Math.cos(gun.angle) * 57,
+        y: gun.y - Math.sin(gun.angle) * 57
+      };
+    }
+
+    function fire(power = gun.power) {
+      gun.power = clamp(power, 1, 9);
+      updateHud();
+      // Для программиста: активный снаряд не перезаписывается новым объектом — старый выстрел всегда корректно завершается.
+      if (projectile || explosion) return;
+      const muzzle = muzzlePosition();
+      const speed = shotSpeed();
+      projectile = {
+        x: muzzle.x, y: muzzle.y, previousX: muzzle.x, previousY: muzzle.y,
+        vx: Math.cos(gun.angle) * speed,
+        vy: -Math.sin(gun.angle) * speed,
+        age: 0,
+        trail: []
+      };
+      shake = 5;
+      for (let i = 0; i < 12; i += 1) {
+        smoke.push({ x: muzzle.x, y: muzzle.y, vx: random(10, 80), vy: random(-70, 5), size: random(6, 15), life: random(.35, .8) });
+      }
+    }
+
+    function circleHitsRect(circle, rect) {
+      const closestX = clamp(circle.x, rect.x, rect.x + rect.w);
+      const closestY = clamp(circle.y, rect.y, rect.y + rect.h);
+      return Math.hypot(circle.x - closestX, circle.y - closestY) <= 7;
+    }
+
+    function detonate(x, y, hitTarget = null) {
+      projectile = null;
+      explosion = { x, y, age: 0, duration: .48 };
+      shake = hitTarget ? 13 : 8;
+      if (hitTarget) {
+        hitTarget.alive = false;
+        score += 1;
+        updateHud();
+      } else if (y >= GROUND_Y - 9) {
+        craters.push({ x: clamp(x, 0, W), radius: random(24, 34) });
+        if (craters.length > 12) craters.shift();
+      }
+      const palette = hitTarget ? ['#ffd66b', '#f36b36', '#64412c'] : ['#ffc45b', '#ec6b34', '#f6e4b7'];
+      for (let i = 0; i < 42; i += 1) {
+        const angle = random(0, Math.PI * 2);
+        const speed = random(40, hitTarget ? 310 : 230);
+        particles.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 55, size: random(2, 6), life: random(.35, .95), color: palette[i % palette.length] });
+      }
+    }
+
+    function updateProjectile(dt) {
+      if (!projectile) return;
+      projectile.age += dt;
+
+      // Для программиста: подшаги стабилизируют попадания при высокой мощности и на экранах с редкими кадрами.
+      const substeps = Math.max(1, Math.ceil(Math.hypot(projectile.vx, projectile.vy) * dt / 8));
+      const step = dt / substeps;
+      for (let i = 0; i < substeps && projectile; i += 1) {
+        projectile.previousX = projectile.x;
+        projectile.previousY = projectile.y;
+        projectile.vy += GRAVITY * step;
+        projectile.x += projectile.vx * step;
+        projectile.y += projectile.vy * step;
+
+        const target = targets.find((item) => item.alive && circleHitsRect(projectile, item));
+        if (target) {
+          detonate(projectile.x, projectile.y, target);
+          break;
         }
-
-        function drawGun() {
-            ctx.fillStyle = "gray";
-            ctx.fillRect(gun.x - 5, gun.y - 5, 10, 10);
-            ctx.strokeStyle = "white";
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(gun.x, gun.y);
-            ctx.lineTo(gun.x + 30 * Math.cos(gun.angle), gun.y - 30 * Math.sin(gun.angle));
-            ctx.stroke();
+        if (projectile.y >= GROUND_Y) {
+          detonate(projectile.x, GROUND_Y);
+          break;
         }
+      }
 
-        function drawBullet() {
-            if (bullet) {
-                ctx.fillStyle = "black";
-                ctx.beginPath();
-                ctx.arc(bullet.x, bullet.y, 5, 0, Math.PI * 2);
-                ctx.fill();
-            }
+      if (!projectile) return;
+      projectile.trail.unshift({ x: projectile.x, y: projectile.y });
+      projectile.trail.length = Math.min(projectile.trail.length, 20);
+      if (projectile.x > W + 130 || projectile.x < -80 || projectile.y > H + 80 || projectile.age > 9) projectile = null;
+    }
+
+    function update(dt) {
+      const aimDirection = (keys.has('arrowup') ? 1 : 0) - (keys.has('arrowdown') ? 1 : 0);
+      const powerDirection = (keys.has('arrowright') ? 1 : 0) - (keys.has('arrowleft') ? 1 : 0);
+      gun.angle = clamp(gun.angle + aimDirection * 1.05 * dt, .08, Math.PI / 2 - .04);
+      gun.power = clamp(gun.power + powerDirection * 4 * dt, 1, 9);
+      updateProjectile(dt);
+
+      if (explosion) {
+        explosion.age += dt;
+        if (explosion.age >= explosion.duration) explosion = null;
+      }
+      for (const particle of particles) {
+        particle.vy += GRAVITY * .7 * dt;
+        particle.x += particle.vx * dt;
+        particle.y += particle.vy * dt;
+        particle.life -= dt;
+      }
+      for (const puff of smoke) {
+        puff.x += puff.vx * dt;
+        puff.y += puff.vy * dt;
+        puff.vx *= Math.pow(.2, dt);
+        puff.vy -= 8 * dt;
+        puff.size += 12 * dt;
+        puff.life -= dt;
+      }
+      for (let i = particles.length - 1; i >= 0; i -= 1) if (particles[i].life <= 0) particles.splice(i, 1);
+      for (let i = smoke.length - 1; i >= 0; i -= 1) if (smoke[i].life <= 0) smoke.splice(i, 1);
+      shake = Math.max(0, shake - 28 * dt);
+
+      if (targets.every((target) => !target.alive)) {
+        nextRangeTimer += dt;
+        if (nextRangeTimer > 1.2) {
+          range += 1;
+          createTargets();
         }
+      }
+      updateHud();
+    }
 
-        function drawExplosion() {
-            if (explosion) {
-                ctx.fillStyle = "red";
-                ctx.beginPath();
-                ctx.arc(explosion.x, explosion.y, explosion.radius, 0, Math.PI * 2);
-                ctx.fill();
-                explosion.radius += 2;
-                if (explosion.radius > 30) {
-                    craters.push({ x: explosion.x, y: explosion.y, radius: 30 }); // Добавляем кратер
-                    explosion = null;
-                }
-            }
-        }
+    function drawSky(time) {
+      const sky = ctx.createLinearGradient(0, 0, 0, H);
+      sky.addColorStop(0, '#071b2d');
+      sky.addColorStop(.52, '#356276');
+      sky.addColorStop(1, '#e9a765');
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, W, H);
 
-        function gameLoop() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            drawGround();
-            drawGun();
-            drawBullet();
-            drawExplosion();
-            
-            if (bullet) {
-                bullet.x += bullet.vx;
-                bullet.y += bullet.vy;
-                bullet.vy += gravity;
-                
-                if (bullet.y >= canvas.height - groundHeight) {
-                    explosion = { x: bullet.x, y: canvas.height - groundHeight, radius: 5 };
-                    bullet = null;
-                }
-            }
-            requestAnimationFrame(gameLoop);
-        }
+      const sun = ctx.createRadialGradient(760, 125, 5, 760, 125, 120);
+      sun.addColorStop(0, '#fff9d8'); sun.addColorStop(.2, '#ffd98a'); sun.addColorStop(1, '#ffd98a00');
+      ctx.fillStyle = sun; ctx.beginPath(); ctx.arc(760, 125, 120, 0, Math.PI * 2); ctx.fill();
 
-        document.addEventListener("keydown", event => {
-            if (event.key === "ArrowUp") gun.angle += 0.1;
-            if (event.key === "ArrowDown") gun.angle -= 0.1;
-            if (gun.angle < 0) gun.angle = 0;
-            if (gun.angle > Math.PI / 2) gun.angle = Math.PI / 2;
-            if (event.key >= "1" && event.key <= "9") {
-                let speed = (event.key.charCodeAt(0) - 48) * 5;
-                bullet = {
-                    x: gun.x + 30 * Math.cos(gun.angle),
-                    y: gun.y - 30 * Math.sin(gun.angle),
-                    vx: speed * Math.cos(gun.angle),
-                    vy: -speed * Math.sin(gun.angle)
-                };
-            }
-        });
+      ctx.fillStyle = '#183743';
+      ctx.beginPath(); ctx.moveTo(0, 380);
+      for (let x = 0; x <= W; x += 70) ctx.lineTo(x, 290 + Math.sin(x * .019) * 48);
+      ctx.lineTo(W, GROUND_Y); ctx.lineTo(0, GROUND_Y); ctx.fill();
+      ctx.fillStyle = '#274b49';
+      ctx.beginPath(); ctx.moveTo(0, 430);
+      for (let x = 0; x <= W; x += 48) ctx.lineTo(x, 365 + Math.sin(x * .031 + 1.5) * 35);
+      ctx.lineTo(W, GROUND_Y); ctx.lineTo(0, GROUND_Y); ctx.fill();
 
-        gameLoop();
-    </script>
+      ctx.globalAlpha = .22;
+      for (let i = 0; i < 7; i += 1) {
+        const x = ((i * 187 + time * .008) % (W + 180)) - 90;
+        const y = 90 + (i % 3) * 54;
+        ctx.fillStyle = '#dff3ee';
+        ctx.beginPath(); ctx.ellipse(x, y, 62, 13, 0, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function drawGround(time) {
+      const soil = ctx.createLinearGradient(0, GROUND_Y, 0, H);
+      soil.addColorStop(0, '#4e6738'); soil.addColorStop(.12, '#35482b'); soil.addColorStop(.13, '#29261e'); soil.addColorStop(1, '#121310');
+      ctx.fillStyle = soil; ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+      ctx.strokeStyle = '#88a651'; ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (let x = 0; x <= W; x += 10) {
+        const y = GROUND_Y + Math.sin(x * .13) * 2;
+        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      for (const crater of craters) {
+        const craterGradient = ctx.createRadialGradient(crater.x, GROUND_Y, 2, crater.x, GROUND_Y, crater.radius);
+        craterGradient.addColorStop(0, '#0d1110'); craterGradient.addColorStop(.65, '#1d1b17'); craterGradient.addColorStop(1, '#6f643c');
+        ctx.fillStyle = craterGradient;
+        ctx.beginPath(); ctx.arc(crater.x, GROUND_Y, crater.radius, Math.PI, 0); ctx.fill();
+      }
+      for (let x = 12; x < W; x += 22) {
+        ctx.strokeStyle = `rgba(132, 162, 75, ${.22 + .1 * Math.sin(x)})`;
+        ctx.beginPath(); ctx.moveTo(x, GROUND_Y + 4); ctx.lineTo(x + Math.sin(time * .002 + x) * 3, GROUND_Y - 8 - (x * 7 % 7)); ctx.stroke();
+      }
+    }
+
+    function drawTrajectoryGuide() {
+      if (projectile || explosion) return;
+      const start = muzzlePosition();
+      const speed = shotSpeed();
+      ctx.fillStyle = '#ffe7a466';
+      // Для геймдизайнера: короткий прогноз траектории обучает баллистике, но не показывает точку падения целиком.
+      for (let t = .13; t <= .78; t += .1) {
+        const x = start.x + Math.cos(gun.angle) * speed * t;
+        const y = start.y - Math.sin(gun.angle) * speed * t + GRAVITY * t * t / 2;
+        if (y >= GROUND_Y || x > W) break;
+        ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    function drawGun() {
+      ctx.save(); ctx.translate(gun.x, gun.y);
+      ctx.fillStyle = '#171c1d'; ctx.beginPath(); ctx.ellipse(0, 13, 52, 15, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#283337'; ctx.beginPath(); ctx.arc(-20, 7, 23, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#66777a'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(-20, 7, 15, 0, Math.PI * 2); ctx.stroke();
+      ctx.rotate(-gun.angle);
+      const barrel = ctx.createLinearGradient(0, -8, 0, 8);
+      barrel.addColorStop(0, '#77888a'); barrel.addColorStop(.5, '#354245'); barrel.addColorStop(1, '#121719');
+      ctx.fillStyle = barrel; ctx.beginPath(); ctx.roundRect(-4, -8, 66, 16, 6); ctx.fill();
+      ctx.fillStyle = '#111719'; ctx.fillRect(51, -10, 13, 20);
+      ctx.restore();
+    }
+
+    function drawTarget(target) {
+      if (!target.alive) return;
+      ctx.save(); ctx.translate(target.x + target.w / 2, target.y + target.h); ctx.rotate(target.tilt);
+      ctx.shadowColor = '#ff9c45'; ctx.shadowBlur = 10;
+      const metal = ctx.createLinearGradient(-target.w / 2, 0, target.w / 2, 0);
+      metal.addColorStop(0, '#563025'); metal.addColorStop(.48, '#d57b3d'); metal.addColorStop(1, '#47251e');
+      ctx.fillStyle = metal; ctx.fillRect(-target.w / 2, -target.h, target.w, target.h);
+      ctx.strokeStyle = '#2a1916'; ctx.lineWidth = 3; ctx.strokeRect(-target.w / 2, -target.h, target.w, target.h);
+      ctx.fillStyle = '#ffe377'; ctx.beginPath(); ctx.arc(0, -target.h * .58, 8, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#5c261e'; ctx.beginPath(); ctx.arc(0, -target.h * .58, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+    function drawEffects() {
+      for (const puff of smoke) {
+        ctx.globalAlpha = clamp(puff.life, 0, .55);
+        ctx.fillStyle = '#d7ddd6'; ctx.beginPath(); ctx.arc(puff.x, puff.y, puff.size, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      for (const particle of particles) {
+        ctx.globalAlpha = clamp(particle.life * 1.8, 0, 1);
+        ctx.fillStyle = particle.color; ctx.fillRect(particle.x, particle.y, particle.size, particle.size);
+      }
+      ctx.globalAlpha = 1;
+      if (explosion) {
+        const progress = explosion.age / explosion.duration;
+        const radius = 12 + Math.sin(progress * Math.PI) * 54;
+        const glow = ctx.createRadialGradient(explosion.x, explosion.y, 2, explosion.x, explosion.y, radius);
+        glow.addColorStop(0, '#ffffff'); glow.addColorStop(.22, '#ffe56d'); glow.addColorStop(.58, '#f45b2eaa'); glow.addColorStop(1, '#c22b0000');
+        ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(explosion.x, explosion.y, radius, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    function drawProjectile() {
+      if (!projectile) return;
+      projectile.trail.forEach((point, index) => {
+        ctx.globalAlpha = (1 - index / projectile.trail.length) * .35;
+        ctx.fillStyle = '#ffc75c'; ctx.beginPath(); ctx.arc(point.x, point.y, Math.max(1, 5 - index * .2), 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+      ctx.shadowColor = '#ffc054'; ctx.shadowBlur = 18; ctx.fillStyle = '#201813';
+      ctx.beginPath(); ctx.arc(projectile.x, projectile.y, 7, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+    }
+
+    function drawOverlay() {
+      ctx.fillStyle = '#07111baa'; ctx.beginPath(); ctx.roundRect(20, 20, 190, 46, 12); ctx.fill();
+      ctx.fillStyle = '#9eb1b9'; ctx.font = '600 12px Inter, system-ui'; ctx.fillText('ПОЛИГОН', 38, 39);
+      ctx.fillStyle = '#fff2c9'; ctx.font = '800 18px Inter, system-ui'; ctx.fillText(`ВОЛНА ${range}`, 38, 58);
+      if (nextRangeTimer > 0) {
+        ctx.textAlign = 'center'; ctx.font = '900 42px Inter, system-ui'; ctx.fillStyle = '#ffe27d';
+        ctx.fillText('ЦЕЛИ ПОРАЖЕНЫ', W / 2, 112); ctx.textAlign = 'left';
+      }
+    }
+
+    function draw(now) {
+      ctx.save();
+      if (shake > 0) ctx.translate(random(-shake, shake), random(-shake, shake));
+      drawSky(now);
+      drawGround(now);
+      drawTrajectoryGuide();
+      targets.forEach(drawTarget);
+      drawGun();
+      drawProjectile();
+      drawEffects();
+      drawOverlay();
+      ctx.restore();
+    }
+
+    function gameLoop(now) {
+      const dt = Math.min((now - lastTime) / 1000, .033);
+      lastTime = now;
+      update(dt);
+      draw(now);
+      requestAnimationFrame(gameLoop);
+    }
+
+    addEventListener('keydown', (event) => {
+      const key = event.key.toLowerCase();
+      if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'r'].includes(key) || /^[1-9]$/.test(key)) event.preventDefault();
+      if (key === ' ' && !event.repeat) fire();
+      if (/^[1-9]$/.test(key) && !event.repeat) fire(Number(key));
+      if (key === 'r' && !event.repeat) resetRange();
+      keys.add(key);
+    });
+    addEventListener('keyup', (event) => keys.delete(event.key.toLowerCase()));
+    addEventListener('blur', () => keys.clear());
+
+    resetRange();
+    requestAnimationFrame(gameLoop);
+  </script>
 </body>
 </html>

@@ -1,250 +1,418 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>3D Breakout</title>
-    <link rel="icon" href="/favicons/breakout-3d.svg" type="image/svg+xml" />
-    <style>
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        overflow: hidden;
-        font-family: Arial, sans-serif;
-        color: #fff;
-        background: #070b18;
-      }
-      #game {
-        position: fixed;
-        inset: 0;
-      }
-      .hud {
-        position: fixed;
-        z-index: 2;
-        top: 16px;
-        left: 16px;
-        width: min(390px, calc(100vw - 32px));
-        padding: 15px 18px;
-        border: 1px solid #6c8cff55;
-        border-radius: 14px;
-        background: #081022cc;
-        backdrop-filter: blur(8px);
-      }
-      h1 {
-        margin: 0 0 7px;
-        font-size: 24px;
-      }
-      p {
-        margin: 6px 0;
-        color: #cbd7ff;
-        line-height: 1.35;
-      }
-      #status {
-        color: #fff;
-        font-weight: bold;
-      }
-      a {
-        color: #8fbdff;
-      }
-    </style>
-  </head>
-  <body>
-    <div id="game"></div>
-    <section class="hud">
-      <h1>3D Breakout</h1>
-      <p>Move: ← → or A D &nbsp; Launch: Space &nbsp; Reset: R</p>
-      <p>Break every neon block without losing all three balls.</p>
-      <p id="status"></p>
-      <p><a href="/index.html">← Back to games</a></p>
-    </section>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-    <script>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Prism Break — 3D Breakout</title>
+  <link rel="icon" href="/favicons/breakout-3d.svg" type="image/svg+xml" />
+  <style>
+    * { box-sizing: border-box; }
+    :root { color-scheme: dark; }
+    body { margin: 0; overflow: hidden; color: #fff; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #040611; user-select: none; }
+    #game, canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+    body::after {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      content: "";
+      background: radial-gradient(circle at 50% 60%, transparent 20%, rgba(2, 3, 12, .68) 100%);
+      box-shadow: inset 0 0 140px rgba(0, 0, 0, .64);
+    }
+    .hud {
+      position: fixed;
+      z-index: 3;
+      top: clamp(14px, 2.2vw, 28px);
+      left: clamp(14px, 2.2vw, 28px);
+      width: min(410px, calc(100vw - 28px));
+      padding: 17px 19px;
+      border: 1px solid rgba(123, 149, 255, .23);
+      border-radius: 18px;
+      background: linear-gradient(145deg, rgba(8, 14, 34, .9), rgba(7, 9, 24, .7));
+      box-shadow: 0 24px 70px rgba(0, 0, 0, .38), inset 0 1px rgba(255, 255, 255, .06);
+      backdrop-filter: blur(16px) saturate(135%);
+    }
+    .eyebrow { color: #77e7ff; font-size: 10px; font-weight: 900; letter-spacing: .23em; text-transform: uppercase; }
+    h1 { margin: 5px 0 9px; font-size: clamp(23px, 4vw, 31px); line-height: 1; letter-spacing: -.045em; }
+    p { margin: 6px 0; color: #afbae1; font-size: 13px; line-height: 1.4; }
+    kbd { display: inline-grid; min-width: 24px; height: 23px; padding: 0 5px; place-items: center; border: 1px solid rgba(178, 195, 255, .25); border-radius: 6px; background: rgba(255, 255, 255, .06); box-shadow: inset 0 -2px rgba(0, 0, 0, .24); font: 750 11px/1 inherit; color: #edf2ff; }
+    .readout { display: flex; gap: 8px; margin: 13px 0 9px; }
+    .chip { flex: 1; padding: 9px 11px; border: 1px solid rgba(128, 151, 255, .14); border-radius: 10px; background: rgba(255, 255, 255, .035); }
+    .chip small { display: block; color: #7f89ad; font-size: 8px; font-weight: 900; letter-spacing: .16em; }
+    .chip b { display: block; margin-top: 2px; font-size: 18px; font-variant-numeric: tabular-nums; }
+    #status { min-height: 19px; color: #fff; font-weight: 750; }
+    #lives { color: #ff6d9c; letter-spacing: .12em; }
+    a { display: inline-block; margin-top: 7px; color: #91baff; font-size: 12px; text-decoration: none; }
+    a:hover { color: #75eaff; }
+    @media (max-width: 620px) { .hud { padding: 14px 16px; } .hint { display: none; } }
+  </style>
+</head>
+<body>
+  <div id="game"></div>
+  <section class="hud" aria-label="Game information">
+    <div class="eyebrow">Neon Arcade // Sector 12</div>
+    <h1>PRISM BREAK</h1>
+    <p><kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd> move &nbsp; <kbd>Space</kbd> launch &nbsp; <kbd>R</kbd> reset</p>
+    <p class="hint">Angle rebounds with the paddle and shatter the whole prism wall.</p>
+    <div class="readout">
+      <div class="chip"><small>SCORE</small><b id="score">0000</b></div>
+      <div class="chip"><small>BRICKS</small><b id="bricks">40</b></div>
+      <div class="chip"><small>CORES</small><b id="lives">● ● ●</b></div>
+    </div>
+    <p id="status" aria-live="polite">Press Space to launch</p>
+    <a href="/index.html">← Back to games</a>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script>
+    (() => {
+      const gameEl = document.getElementById('game');
+      const scoreEl = document.getElementById('score');
+      const bricksEl = document.getElementById('bricks');
+      const livesEl = document.getElementById('lives');
+      const statusEl = document.getElementById('status');
+
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x070b18);
-      scene.fog = new THREE.Fog(0x070b18, 28, 52);
-      const camera = new THREE.PerspectiveCamera(
-        52,
-        innerWidth / innerHeight,
-        0.1,
-        100,
-      );
-      camera.position.set(0, 18, 20);
-      camera.lookAt(0, 0, -5);
-      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      scene.background = new THREE.Color(0x040611);
+      scene.fog = new THREE.Fog(0x040611, 28, 55);
+
+      const camera = new THREE.PerspectiveCamera(51, innerWidth / innerHeight, .1, 100);
+      camera.position.set(0, 18.5, 20.5);
+      camera.lookAt(0, 0, -4.8);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
       renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
       renderer.setSize(innerWidth, innerHeight);
       renderer.shadowMap.enabled = true;
-      document.getElementById("game").appendChild(renderer.domElement);
-      scene.add(new THREE.HemisphereLight(0xaac8ff, 0x141025, 1.5));
-      const light = new THREE.DirectionalLight(0xffffff, 2);
-      light.position.set(-6, 15, 8);
-      light.castShadow = true;
-      scene.add(light);
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.2;
+      gameEl.appendChild(renderer.domElement);
+
+      scene.add(new THREE.HemisphereLight(0xb7c8ff, 0x070514, 1.65));
+      const keyLight = new THREE.DirectionalLight(0xf2f5ff, 2.8);
+      keyLight.position.set(-7, 17, 9);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.set(2048, 2048);
+      scene.add(keyLight);
+      const rimLight = new THREE.PointLight(0x8b5cff, 34, 38, 2);
+      rimLight.position.set(8, 5, -10);
+      scene.add(rimLight);
+
+      const starPositions = [];
+      for (let index = 0; index < 650; index += 1) {
+        starPositions.push((Math.random() - .5) * 75, Math.random() * 35 - 4, (Math.random() - .5) * 80);
+      }
+      const starGeometry = new THREE.BufferGeometry();
+      starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
+      const starField = new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: 0x9fb5ff, size: .07, transparent: true, opacity: .72 }));
+      scene.add(starField);
+
       const board = new THREE.Mesh(
-        new THREE.BoxGeometry(20, 0.5, 30),
-        new THREE.MeshStandardMaterial({
-          color: 0x101a36,
-          roughness: 0.55,
-          metalness: 0.25,
-        }),
+        new THREE.BoxGeometry(20, .45, 30),
+        new THREE.MeshStandardMaterial({ color: 0x0d1734, roughness: .34, metalness: .55 }),
       );
-      board.position.y = -0.5;
+      board.position.y = -.48;
       board.receiveShadow = true;
       scene.add(board);
-      const grid = new THREE.GridHelper(30, 30, 0x3758a0, 0x182348);
-      grid.position.y = -0.23;
+
+      const grid = new THREE.GridHelper(30, 30, 0x456ee5, 0x18264f);
+      grid.position.y = -.24;
+      grid.material.transparent = true;
+      grid.material.opacity = .42;
       scene.add(grid);
-      const wallMat = new THREE.MeshStandardMaterial({
-        color: 0x334b88,
-        metalness: 0.5,
-      });
-      [-10.25, 10.25].forEach((x) => {
-        const wall = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1, 30), wallMat);
-        wall.position.set(x, 0, 0);
+
+      const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x304a8a, roughness: .28, metalness: .72 });
+      [-10.22, 10.22].forEach((x) => {
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(.44, .85, 30.4), wallMaterial);
+        wall.position.set(x, .02, 0);
+        wall.castShadow = true;
         scene.add(wall);
+        const strip = new THREE.Mesh(new THREE.BoxGeometry(.06, .08, 29.5), new THREE.MeshBasicMaterial({ color: x < 0 ? 0x4adfff : 0x986dff }));
+        strip.position.set(x - Math.sign(x) * .24, .5, 0);
+        scene.add(strip);
       });
-      const paddle = new THREE.Mesh(
-        new THREE.BoxGeometry(4, 0.8, 1.1),
-        new THREE.MeshStandardMaterial({ color: 0x5be7ff, emissive: 0x0c5060 }),
-      );
-      paddle.position.set(0, 0.25, 9.5);
-      paddle.castShadow = true;
+
+      const paddle = new THREE.Group();
+      const paddleMaterial = new THREE.MeshPhysicalMaterial({ color: 0x5be7ff, emissive: 0x0b6579, emissiveIntensity: .7, roughness: .2, metalness: .45, clearcoat: 1 });
+      const paddleCore = new THREE.Mesh(new THREE.BoxGeometry(3.5, .72, 1.02), paddleMaterial);
+      paddleCore.castShadow = true;
+      paddle.add(paddleCore);
+      [-1.78, 1.78].forEach((x) => {
+        const cap = new THREE.Mesh(new THREE.CylinderGeometry(.36, .36, 1.02, 20), paddleMaterial);
+        cap.rotation.x = Math.PI / 2;
+        cap.position.x = x;
+        cap.castShadow = true;
+        paddle.add(cap);
+      });
+      paddle.position.set(0, .23, 9.5);
       scene.add(paddle);
+
       const ball = new THREE.Mesh(
-        new THREE.SphereGeometry(0.42, 24, 16),
-        new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x7777ff }),
+        new THREE.SphereGeometry(.4, 28, 20),
+        new THREE.MeshPhysicalMaterial({ color: 0xffffff, emissive: 0x657dff, emissiveIntensity: 1.5, roughness: .12, metalness: .25, clearcoat: 1 }),
       );
       ball.castShadow = true;
       scene.add(ball);
-      const blocks = [],
-        colors = [0xff477e, 0xff9f43, 0xffdd59, 0x48dbfb, 0x9b6bff];
-      for (let row = 0; row < 5; row++)
-        for (let col = 0; col < 8; col++) {
+      const ballLight = new THREE.PointLight(0x7589ff, 10, 7, 2);
+      scene.add(ballLight);
+
+      const trail = [];
+      for (let index = 0; index < 10; index += 1) {
+        const mote = new THREE.Mesh(
+          new THREE.SphereGeometry(.1 - index * .006, 8, 6),
+          new THREE.MeshBasicMaterial({ color: 0x8398ff, transparent: true, opacity: .34 * (1 - index / 10) }),
+        );
+        mote.visible = false;
+        scene.add(mote);
+        trail.push(mote);
+      }
+
+      const blocks = [];
+      const particles = [];
+      const rowColors = [0xff3f82, 0xff7b54, 0xffd85a, 0x44dff2, 0x8a65ff];
+      const blockGeometry = new THREE.BoxGeometry(2.02, .74, 1.08);
+      for (let row = 0; row < 5; row += 1) {
+        for (let column = 0; column < 8; column += 1) {
+          const color = rowColors[row];
           const block = new THREE.Mesh(
-            new THREE.BoxGeometry(2.05, 0.8, 1.15),
-            new THREE.MeshStandardMaterial({
-              color: colors[row],
-              emissive: colors[row],
-              emissiveIntensity: 0.18,
-            }),
+            blockGeometry,
+            new THREE.MeshPhysicalMaterial({ color, emissive: color, emissiveIntensity: .34, roughness: .22, metalness: .32, clearcoat: .7 }),
           );
-          block.position.set((col - 3.5) * 2.35, 0.25, -10.5 + row * 1.5);
+          block.position.set((column - 3.5) * 2.34, .22, -10.5 + row * 1.5);
           block.castShadow = true;
           block.userData.active = true;
+          const edges = new THREE.LineSegments(
+            new THREE.EdgesGeometry(blockGeometry),
+            new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: .22 }),
+          );
+          block.add(edges);
           scene.add(block);
           blocks.push(block);
         }
-      const keys = new Set();
-      let velocity = new THREE.Vector3(0, 0, 0),
-        launched = false,
-        score = 0,
-        lives = 3,
-        ended = false;
-      const status = document.getElementById("status");
-      function updateStatus(
-        message = launched ? "Ball in play" : "Press Space to launch",
-      ) {
-        status.textContent = `Score: ${score} | Lives: ${lives} | ${message}`;
       }
-      function placeBall() {
+
+      const keys = new Set();
+      const velocity = new THREE.Vector3();
+      const clock = new THREE.Clock();
+      let launched = false;
+      let score = 0;
+      let lives = 3;
+      let ended = false;
+      let stateMessage = 'Press Space to launch';
+
+      function updateHud() {
+        const remaining = blocks.filter((block) => block.userData.active).length;
+        scoreEl.textContent = String(score).padStart(4, '0');
+        bricksEl.textContent = remaining;
+        livesEl.textContent = lives > 0 ? '● '.repeat(lives).trim() : '—';
+        statusEl.textContent = stateMessage;
+      }
+
+      function placeBall(message = 'Press Space to launch') {
         launched = false;
         velocity.set(0, 0, 0);
-        ball.position.set(paddle.position.x, 0.55, 8.5);
+        ball.position.set(paddle.position.x, .53, 8.46);
+        trail.forEach((mote) => { mote.visible = false; });
+        stateMessage = message;
+        updateHud();
       }
+
       function reset() {
         score = 0;
         lives = 3;
         ended = false;
         paddle.position.x = 0;
-        blocks.forEach((b) => {
-          b.visible = true;
-          b.userData.active = true;
+        blocks.forEach((block) => {
+          block.visible = true;
+          block.scale.set(1, 1, 1);
+          block.userData.active = true;
         });
+        particles.splice(0).forEach((particle) => scene.remove(particle));
         placeBall();
-        updateStatus();
       }
-      addEventListener("keydown", (e) => {
-        keys.add(e.key.toLowerCase());
-        if (e.key === " ") {
-          e.preventDefault();
-          if (!launched && !ended) {
-            launched = true;
-            velocity.set((Math.random() - 0.5) * 0.12, 0, -0.22);
+
+      function launch() {
+        if (launched || ended) return;
+        launched = true;
+        const angle = (Math.random() - .5) * .55;
+        velocity.set(Math.sin(angle) * 9.5, 0, -Math.cos(angle) * 9.5);
+        trail.forEach((mote) => mote.position.copy(ball.position));
+        stateMessage = 'Ball in play';
+        updateHud();
+      }
+
+      function burst(block) {
+        for (let index = 0; index < 8; index += 1) {
+          const particle = new THREE.Mesh(
+            new THREE.BoxGeometry(.1, .1, .1),
+            new THREE.MeshBasicMaterial({ color: block.material.color, transparent: true }),
+          );
+          particle.position.copy(block.position);
+          particle.userData.velocity = new THREE.Vector3((Math.random() - .5) * 4, Math.random() * 2.5, (Math.random() - .5) * 4);
+          particle.userData.life = .55 + Math.random() * .25;
+          scene.add(particle);
+          particles.push(particle);
+        }
+      }
+
+      function destroyBlock(block) {
+        block.userData.active = false;
+        block.visible = false;
+        score += 10;
+        burst(block);
+        stateMessage = 'Clean hit!';
+        updateHud();
+      }
+
+      // Для программиста: шар движется короткими подшагами. Это устраняет
+      // «пролёт» сквозь тонкий кирпич на быстром мониторе или после просадки FPS.
+      function simulateBall(dt) {
+        const distance = velocity.length() * dt;
+        const steps = Math.max(1, Math.ceil(distance / .24));
+        const step = dt / steps;
+
+        for (let tick = 0; tick < steps; tick += 1) {
+          const previousX = ball.position.x;
+          const previousZ = ball.position.z;
+          ball.position.addScaledVector(velocity, step);
+
+          if (ball.position.x < -9.55 || ball.position.x > 9.55) {
+            ball.position.x = THREE.MathUtils.clamp(ball.position.x, -9.55, 9.55);
+            velocity.x *= -1;
+          }
+          if (ball.position.z < -14.35) {
+            ball.position.z = -14.35;
+            velocity.z = Math.abs(velocity.z);
+          }
+
+          const paddleFront = paddle.position.z - .52;
+          if (
+            velocity.z > 0 &&
+            previousZ + .4 <= paddleFront &&
+            ball.position.z + .4 >= paddleFront &&
+            Math.abs(ball.position.x - paddle.position.x) < 2.25
+          ) {
+            ball.position.z = paddleFront - .41;
+            const offset = THREE.MathUtils.clamp((ball.position.x - paddle.position.x) / 2.15, -.95, .95);
+            const speed = THREE.MathUtils.clamp(velocity.length() * 1.025, 9.5, 13.5);
+            velocity.x = offset * speed * .78;
+            velocity.z = -Math.sqrt(Math.max(12, speed * speed - velocity.x * velocity.x));
+            stateMessage = Math.abs(offset) > .55 ? 'Sharp angle!' : 'Solid return';
+            updateHud();
+          }
+
+          for (const block of blocks) {
+            if (!block.userData.active) continue;
+            const dx = ball.position.x - block.position.x;
+            const dz = ball.position.z - block.position.z;
+            if (Math.abs(dx) >= 1.42 || Math.abs(dz) >= .95) continue;
+
+            const cameFromSide = Math.abs(previousX - block.position.x) >= 1.41;
+            const cameFromEnd = Math.abs(previousZ - block.position.z) >= .94;
+            if (cameFromSide && !cameFromEnd) velocity.x *= -1;
+            else if (cameFromEnd && !cameFromSide) velocity.z *= -1;
+            else {
+              const xPenetration = 1.42 - Math.abs(dx);
+              const zPenetration = .95 - Math.abs(dz);
+              if (xPenetration < zPenetration) velocity.x *= -1;
+              else velocity.z *= -1;
+            }
+            destroyBlock(block);
+            break; // One substep destroys at most one brick, so velocity cannot flip twice.
           }
         }
-        if (e.key.toLowerCase() === "r") reset();
+      }
+
+      function loseBall() {
+        lives -= 1;
+        if (lives <= 0) {
+          lives = 0;
+          ended = true;
+          launched = false;
+          stateMessage = 'Core depleted — press R to rebuild';
+          updateHud();
+        } else {
+          placeBall('Ball lost — press Space');
+        }
+      }
+
+      addEventListener('keydown', (event) => {
+        keys.add(event.key.toLowerCase());
+        if (event.code === 'Space') {
+          event.preventDefault();
+          launch();
+        }
+        if (event.key.toLowerCase() === 'r') reset();
       });
-      addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
-      reset();
+      addEventListener('keyup', (event) => keys.delete(event.key.toLowerCase()));
+      addEventListener('blur', () => keys.clear());
+
       function animate() {
         requestAnimationFrame(animate);
+        const dt = Math.min(clock.getDelta(), .033);
+        const time = clock.elapsedTime;
+
         if (!ended) {
-          if (keys.has("arrowleft") || keys.has("a")) paddle.position.x -= 0.18;
-          if (keys.has("arrowright") || keys.has("d"))
-            paddle.position.x += 0.18;
-          paddle.position.x = THREE.MathUtils.clamp(paddle.position.x, -8, 8);
-          if (!launched)
-            ball.position.x += (paddle.position.x - ball.position.x) * 0.4;
-          else {
-            ball.position.add(velocity);
-            if (Math.abs(ball.position.x) > 9.55) {
-              velocity.x *= -1;
-              ball.position.x = THREE.MathUtils.clamp(
-                ball.position.x,
-                -9.55,
-                9.55,
-              );
+          const direction = (keys.has('arrowright') || keys.has('d') ? 1 : 0) - (keys.has('arrowleft') || keys.has('a') ? 1 : 0);
+          paddle.position.x = THREE.MathUtils.clamp(paddle.position.x + direction * dt * 11.5, -8, 8);
+          paddle.rotation.z += (-direction * .08 - paddle.rotation.z) * Math.min(1, dt * 12);
+
+          if (!launched) {
+            ball.position.x += (paddle.position.x - ball.position.x) * Math.min(1, dt * 18);
+          } else {
+            simulateBall(dt);
+            for (let index = trail.length - 1; index > 0; index -= 1) {
+              trail[index].position.lerp(trail[index - 1].position, Math.min(1, dt * 22));
+              trail[index].visible = true;
             }
-            if (ball.position.z < -14.4) velocity.z = Math.abs(velocity.z);
-            if (
-              ball.position.z > 8.6 &&
-              ball.position.z < 10.3 &&
-              Math.abs(ball.position.x - paddle.position.x) < 2.35 &&
-              velocity.z > 0
-            ) {
-              velocity.z = -Math.abs(velocity.z) * 1.02;
-              velocity.x += (ball.position.x - paddle.position.x) * 0.035;
-            }
-            blocks.forEach((block) => {
-              if (
-                block.userData.active &&
-                Math.abs(ball.position.x - block.position.x) < 1.5 &&
-                Math.abs(ball.position.z - block.position.z) < 0.95
-              ) {
-                block.userData.active = false;
-                block.visible = false;
-                velocity.z *= -1;
-                score += 10;
-              }
-            });
-            if (ball.position.z > 15) {
-              lives--;
-              if (!lives) {
-                ended = true;
-                updateStatus("Game over — press R");
-              } else {
-                placeBall();
-                updateStatus("Ball lost — press Space");
-              }
-            }
-            if (blocks.every((b) => !b.userData.active)) {
-              ended = true;
-              launched = false;
-              updateStatus("You cleared the board! Press R");
-            }
+            trail[0].position.copy(ball.position);
+            trail[0].visible = true;
+            if (ball.position.z > 14.8) loseBall();
+          }
+
+          if (blocks.every((block) => !block.userData.active)) {
+            ended = true;
+            launched = false;
+            stateMessage = 'Prism cleared — press R for another run';
+            updateHud();
           }
         }
+
+        // Для геймдизайнера: частицы подтверждают разрушение мгновенно, даже когда
+        // сам кирпич скрывается в тот же кадр — попадание остаётся хорошо читаемым.
+        for (let index = particles.length - 1; index >= 0; index -= 1) {
+          const particle = particles[index];
+          particle.position.addScaledVector(particle.userData.velocity, dt);
+          particle.userData.velocity.y -= 5 * dt;
+          particle.userData.life -= dt;
+          particle.material.opacity = Math.max(0, particle.userData.life * 1.6);
+          particle.scale.setScalar(Math.max(.01, particle.userData.life));
+          if (particle.userData.life <= 0) {
+            scene.remove(particle);
+            particles.splice(index, 1);
+          }
+        }
+
+        ball.rotation.x += velocity.z * dt * 1.1;
+        ball.rotation.z -= velocity.x * dt * 1.1;
+        ballLight.position.copy(ball.position);
+        paddleCore.material.emissiveIntensity = .58 + Math.sin(time * 4) * .08;
+        starField.rotation.y = time * .006;
         renderer.render(scene, camera);
       }
-      addEventListener("resize", () => {
+
+      addEventListener('resize', () => {
         camera.aspect = innerWidth / innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(innerWidth, innerHeight);
       });
+
+      reset();
       animate();
-    </script>
-    <script src="fps-counter.js"></script>
-  </body>
+    })();
+  </script>
+  <script src="fps-counter.js"></script>
+</body>
 </html>

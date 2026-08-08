@@ -3,142 +3,230 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Frogger</title>
+    <title>Frogger — Moonlit Crossing</title>
     <link rel="icon" href="/favicons/frogger.svg" type="image/svg+xml" />
     <style>
-      :root {
-        color-scheme: dark;
-      }
-
+      :root { color-scheme: dark; --ink: #eefff4; --muted: #9bb5ad; --mint: #85f5a6; }
+      * { box-sizing: border-box; }
       body {
         margin: 0;
         min-height: 100vh;
         display: grid;
         place-items: center;
-        background: radial-gradient(circle at top, #11314a 0%, #08131f 55%);
-        color: #eaf6ff;
-        font-family: Arial, Helvetica, sans-serif;
+        background:
+          radial-gradient(circle at 50% -12%, rgba(60, 146, 172, .29), transparent 42rem),
+          linear-gradient(#07151c, #07100d);
+        color: var(--ink);
+        font-family: Inter, "Segoe UI", sans-serif;
       }
-
-      main {
-        text-align: center;
+      main { width: min(96vw, 760px); padding: 23px 0 28px; text-align: center; }
+      .eyebrow { margin: 0; color: var(--mint); font-size: .7rem; font-weight: 900; letter-spacing: .25em; text-transform: uppercase; }
+      h1 { margin: 2px 0 5px; font-size: clamp(2.4rem, 8vw, 4.5rem); line-height: 1; letter-spacing: -.07em; }
+      .subtitle { margin: 0 0 14px; color: var(--muted); font-size: .85rem; }
+      .frame {
+        position: relative;
+        padding: 9px;
+        border: 1px solid rgba(135, 231, 189, .23);
+        border-radius: 24px;
+        overflow: hidden;
+        background: linear-gradient(145deg, rgba(20, 48, 49, .94), rgba(9, 24, 25, .96));
+        box-shadow: 0 32px 88px rgba(0,0,0,.58), inset 0 1px rgba(255,255,255,.07);
       }
-
-      canvas {
-        display: block;
-        margin: 12px auto 0;
-        border: 2px solid #8ec6ff;
-        box-shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
-        background: #041424;
-        touch-action: none;
+      canvas { display: block; width: 100%; height: auto; border-radius: 16px; background: #07191c; touch-action: none; }
+      .hud {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 12px 7px 4px;
+        color: #8daaa2;
+        font-size: .62rem;
+        font-weight: 850;
+        letter-spacing: .14em;
+        text-transform: uppercase;
       }
-
-      p {
-        margin: 6px 0;
+      .hud strong { display: block; margin-top: 2px; color: #f2fff5; font-size: 1.08rem; letter-spacing: .03em; }
+      #message { flex: 1; align-self: center; color: #d7efe0; font-size: .72rem; }
+      .controls { display: grid; grid-template-columns: repeat(3, 52px); justify-content: center; gap: 7px; margin-top: 13px; }
+      button {
+        min-height: 43px;
+        border: 1px solid rgba(133, 245, 166, .3);
+        border-radius: 13px;
+        background: rgba(35, 79, 57, .68);
+        color: var(--ink);
+        font: 800 1rem Inter, sans-serif;
+        cursor: pointer;
+        touch-action: manipulation;
       }
+      button:hover { border-color: var(--mint); background: rgba(56, 113, 77, .72); }
+      button:focus-visible { outline: 3px solid white; outline-offset: 3px; }
+      [data-move="up"] { grid-column: 2; }
+      [data-move="left"] { grid-column: 1; grid-row: 2; }
+      [data-move="down"] { grid-column: 2; grid-row: 2; }
+      [data-move="right"] { grid-column: 3; grid-row: 2; }
+      .new-run { grid-column: 1 / 4; font-size: .76rem; }
     </style>
   </head>
   <body>
     <main>
+      <p class="eyebrow">Moonlit crossing</p>
       <h1>Frogger</h1>
-      <p>Cross the road and river. Arrow keys or swipe move one tile.</p>
-      <p id="hud"></p>
-      <canvas id="gameCanvas" width="640" height="520"></canvas>
+      <p class="subtitle">Arrow keys / WASD or swipe · ride the logs, dodge the traffic · P pauses</p>
+      <section class="frame" aria-label="Frogger game">
+        <canvas id="gameCanvas" width="640" height="520"></canvas>
+        <div class="hud" aria-live="polite">
+          <span>Crossings<strong id="scoreValue">0</strong></span>
+          <span id="message">Reach the moon garden</span>
+          <span>Mishaps<strong id="deathsValue">0</strong></span>
+        </div>
+      </section>
+      <div class="controls" aria-label="Touch controls">
+        <button type="button" data-move="up" aria-label="Move up">↑</button>
+        <button type="button" data-move="left" aria-label="Move left">←</button>
+        <button type="button" data-move="down" aria-label="Move down">↓</button>
+        <button type="button" data-move="right" aria-label="Move right">→</button>
+        <button class="new-run" id="resetButton" type="button">New crossing</button>
+      </div>
     </main>
 
     <script>
       const canvas = document.getElementById('gameCanvas');
-      const hud = document.getElementById('hud');
       const ctx = canvas.getContext('2d');
+      const scoreValue = document.getElementById('scoreValue');
+      const deathsValue = document.getElementById('deathsValue');
+      const messageEl = document.getElementById('message');
+      const resetButton = document.getElementById('resetButton');
 
       const WIDTH = canvas.width;
       const HEIGHT = canvas.height;
       const TILE = 40;
       const COLS = WIDTH / TILE;
       const ROWS = HEIGHT / TILE;
-
-      const Y = {
-        GOAL: 0,
-        RIVER_1: 2,
-        RIVER_2: 3,
-        RIVER_3: 4,
-        MEDIAN: 6,
-        ROAD_1: 7,
-        ROAD_2: 8,
-        ROAD_3: 9,
-        START: 12,
-      };
-
-      const ROAD_ROWS = [Y.ROAD_1, Y.ROAD_2, Y.ROAD_3];
-      const RIVER_ROWS = [Y.RIVER_1, Y.RIVER_2, Y.RIVER_3];
+      const STEP_DELAY_MS = 105;
+      const MIN_SWIPE_DISTANCE = 22;
+      const ROW = { GOAL: 0, RIVER_1: 2, RIVER_2: 3, RIVER_3: 4, MEDIAN: 6, ROAD_1: 7, ROAD_2: 8, ROAD_3: 9, START: 12 };
+      const RIVER_ROWS = [ROW.RIVER_1, ROW.RIVER_2, ROW.RIVER_3];
+      const ROAD_ROWS = [ROW.ROAD_1, ROW.ROAD_2, ROW.ROAD_3];
 
       const lanes = [
-        { type: 'river', row: Y.RIVER_1, speed: 70, items: [] },
-        { type: 'river', row: Y.RIVER_2, speed: -95, items: [] },
-        { type: 'river', row: Y.RIVER_3, speed: 60, items: [] },
-        { type: 'road', row: Y.ROAD_1, speed: -135, items: [] },
-        { type: 'road', row: Y.ROAD_2, speed: 165, items: [] },
-        { type: 'road', row: Y.ROAD_3, speed: -150, items: [] },
+        { type: 'river', row: ROW.RIVER_1, speed: 70, widthTiles: 2.7, count: 3, items: [] },
+        { type: 'river', row: ROW.RIVER_2, speed: -96, widthTiles: 2.35, count: 3, items: [] },
+        { type: 'river', row: ROW.RIVER_3, speed: 61, widthTiles: 2.7, count: 3, items: [] },
+        { type: 'road', row: ROW.ROAD_1, speed: -138, widthTiles: 1.7, count: 4, color: '#ff725e', items: [] },
+        { type: 'road', row: ROW.ROAD_2, speed: 168, widthTiles: 1.55, count: 4, color: '#68b9ff', items: [] },
+        { type: 'road', row: ROW.ROAD_3, speed: -152, widthTiles: 1.8, count: 4, color: '#f5c451', items: [] },
       ];
 
-      function spawnLaneItems(lane, widthTiles, count) {
-        const gap = WIDTH / count;
-        for (let i = 0; i < count; i += 1) {
-          lane.items.push({
-            x: i * gap,
-            w: widthTiles * TILE,
-            h: TILE - 8,
-          });
-        }
+      const grassDetails = Array.from({ length: 125 }, () => ({
+        x: Math.random() * WIDTH,
+        y: Math.random() * HEIGHT,
+        length: 2 + Math.random() * 5,
+        alpha: .08 + Math.random() * .16,
+      }));
+
+      function populateLanes() {
+        lanes.forEach((lane) => {
+          lane.items = [];
+          const spacing = WIDTH / lane.count;
+          const offset = (lane.row % 3) * spacing * .23;
+          for (let index = 0; index < lane.count; index += 1) {
+            lane.items.push({
+              x: (index * spacing + offset) % WIDTH,
+              w: lane.widthTiles * TILE,
+              h: TILE - 9,
+              variant: index % 3,
+            });
+          }
+        });
       }
 
-      lanes.forEach((lane) => {
-        if (lane.type === 'river') spawnLaneItems(lane, 2.5, 3);
-        if (lane.type === 'road') spawnLaneItems(lane, 1.7, 4);
-      });
-
-      const frog = {
-        col: Math.floor(COLS / 2),
-        row: Y.START,
-        x: 0,
-        y: 0,
-      };
-
-      function syncFrogPosition() {
-        frog.x = frog.col * TILE;
-        frog.y = frog.row * TILE;
-      }
-
-      syncFrogPosition();
-
+      const frog = { x: 0, row: ROW.START, col: Math.floor(COLS / 2), facing: 'up', hop: 0 };
       let score = 0;
       let deaths = 0;
-      let lastStepTime = 0;
-      const STEP_DELAY_MS = 110;
+      let lastStepTime = -Infinity;
+      let touchStart = null;
+      let elapsed = 0;
+      let paused = false;
+      let screenFlash = 0;
+      let particles = [];
+      let messageTimer = 0;
+
+      function syncFrogToGrid() {
+        frog.x = frog.col * TILE;
+      }
 
       function resetFrog() {
         frog.col = Math.floor(COLS / 2);
-        frog.row = Y.START;
-        syncFrogPosition();
+        frog.row = ROW.START;
+        frog.facing = 'up';
+        frog.hop = 0;
+        syncFrogToGrid();
       }
 
-      function overlaps(frogRect, objRect) {
-        return (
-          frogRect.x < objRect.x + objRect.w &&
-          frogRect.x + TILE > objRect.x &&
-          frogRect.y < objRect.y + objRect.h &&
-          frogRect.y + TILE > objRect.y
-        );
+      function resetRun() {
+        score = 0;
+        deaths = 0;
+        particles = [];
+        paused = false;
+        populateLanes();
+        resetFrog();
+        setMessage('Reach the moon garden', 0);
+        updateHud();
+      }
+
+      function setMessage(text, duration = 1.1) {
+        messageEl.textContent = text;
+        messageTimer = duration;
+      }
+
+      function updateHud() {
+        scoreValue.textContent = String(score);
+        deathsValue.textContent = String(deaths);
       }
 
       function laneY(row) {
-        return row * TILE + 4;
+        return row * TILE + 4.5;
+      }
+
+      function overlapWidth(a, b) {
+        return Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+      }
+
+      function overlaps(a, b) {
+        return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+      }
+
+      function spawnParticles(x, y, type) {
+        const color = type === 'water' ? '#7fe5ff' : type === 'goal' ? '#b6ff96' : '#ffb282';
+        for (let i = 0; i < 18; i += 1) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 25 + Math.random() * 90;
+          particles.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: .45 + Math.random() * .55, color, size: 1 + Math.random() * 3 });
+        }
+      }
+
+      function loseFrog(reason) {
+        deaths += 1;
+        screenFlash = .45;
+        spawnParticles(frog.x + TILE / 2, frog.row * TILE + TILE / 2, reason);
+        setMessage(reason === 'water' ? 'Splash! Try another route' : 'Ouch! Watch the traffic');
+        resetFrog();
+        updateHud();
       }
 
       function moveFrog(dx, dy) {
-        frog.col = Math.max(0, Math.min(COLS - 1, frog.col + dx));
-        frog.row = Math.max(0, Math.min(ROWS - 1, frog.row + dy));
-        syncFrogPosition();
+        if (paused) return;
+        if (dx) {
+          frog.x = Math.max(0, Math.min(WIDTH - TILE, frog.x + dx * TILE));
+          frog.col = Math.round(frog.x / TILE);
+          frog.facing = dx < 0 ? 'left' : 'right';
+        }
+        if (dy) {
+          frog.row = Math.max(ROW.GOAL, Math.min(ROW.START, frog.row + dy));
+          frog.col = Math.max(0, Math.min(COLS - 1, Math.round(frog.x / TILE)));
+          syncFrogToGrid();
+          frog.facing = dy < 0 ? 'up' : 'down';
+        }
+        frog.hop = 1;
       }
 
       function attemptMove(dx, dy) {
@@ -149,183 +237,249 @@
         return true;
       }
 
+      const keyMoves = {
+        ArrowUp: [0, -1], KeyW: [0, -1], ArrowDown: [0, 1], KeyS: [0, 1],
+        ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0],
+      };
       window.addEventListener('keydown', (event) => {
-        if (event.key.startsWith('Arrow')) {
+        if (keyMoves[event.code]) {
           event.preventDefault();
+          attemptMove(...keyMoves[event.code]);
         }
-
-        if (event.key === 'ArrowUp') attemptMove(0, -1);
-        if (event.key === 'ArrowDown') attemptMove(0, 1);
-        if (event.key === 'ArrowLeft') attemptMove(-1, 0);
-        if (event.key === 'ArrowRight') attemptMove(1, 0);
+        if (event.code === 'KeyP' && !event.repeat) paused = !paused;
       });
 
-      const MIN_SWIPE_DISTANCE = 22;
-      let touchStartX = null;
-      let touchStartY = null;
+      canvas.addEventListener('pointerdown', (event) => {
+        touchStart = { x: event.clientX, y: event.clientY };
+        canvas.setPointerCapture?.(event.pointerId);
+      });
+      canvas.addEventListener('pointerup', (event) => {
+        if (!touchStart) return;
+        const dx = event.clientX - touchStart.x;
+        const dy = event.clientY - touchStart.y;
+        touchStart = null;
+        if (Math.max(Math.abs(dx), Math.abs(dy)) < MIN_SWIPE_DISTANCE) return;
+        if (Math.abs(dx) > Math.abs(dy)) attemptMove(Math.sign(dx), 0);
+        else attemptMove(0, Math.sign(dy));
+      });
+      canvas.addEventListener('pointercancel', () => { touchStart = null; });
 
-      canvas.addEventListener(
-        'touchstart',
-        (event) => {
-          const touch = event.changedTouches[0];
-          touchStartX = touch.clientX;
-          touchStartY = touch.clientY;
-          event.preventDefault();
-        },
-        { passive: false },
-      );
+      document.querySelectorAll('[data-move]').forEach((button) => {
+        const moves = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+        button.addEventListener('click', () => attemptMove(...moves[button.dataset.move]));
+      });
+      resetButton.addEventListener('click', resetRun);
 
-      canvas.addEventListener(
-        'touchend',
-        (event) => {
-          if (touchStartX === null || touchStartY === null) return;
+      function updateLaneItems(dt) {
+        lanes.forEach((lane) => lane.items.forEach((item) => {
+          item.x += lane.speed * dt;
+          // Для программиста: перенос срабатывает, когда объект полностью ушёл за край.
+          // У положительного направления прежний лишний +item.w создавал заметную пустую паузу.
+          if (lane.speed > 0 && item.x > WIDTH) item.x = -item.w;
+          if (lane.speed < 0 && item.x + item.w < 0) item.x = WIDTH;
+        }));
+      }
 
-          const touch = event.changedTouches[0];
-          const dx = touch.clientX - touchStartX;
-          const dy = touch.clientY - touchStartY;
-          const absDx = Math.abs(dx);
-          const absDy = Math.abs(dy);
+      function updateFrogSafety(dt) {
+        const frogRect = { x: frog.x + 6, y: frog.row * TILE + 6, w: TILE - 12, h: TILE - 12 };
+        const activeLane = lanes.find((lane) => lane.row === frog.row);
+        if (!activeLane) return;
 
-          if (Math.max(absDx, absDy) < MIN_SWIPE_DISTANCE) {
-            touchStartX = null;
-            touchStartY = null;
-            event.preventDefault();
-            return;
-          }
-
-          if (absDx > absDy) {
-            attemptMove(dx > 0 ? 1 : -1, 0);
-          } else {
-            attemptMove(0, dy > 0 ? 1 : -1);
-          }
-
-          touchStartX = null;
-          touchStartY = null;
-          event.preventDefault();
-        },
-        { passive: false },
-      );
-
-      canvas.addEventListener(
-        'touchcancel',
-        () => {
-          touchStartX = null;
-          touchStartY = null;
-        },
-        { passive: true },
-      );
-
-      function update(dt) {
-        lanes.forEach((lane) => {
-          lane.items.forEach((item) => {
-            item.x += lane.speed * dt;
-            if (lane.speed > 0 && item.x > WIDTH + item.w) item.x = -item.w;
-            if (lane.speed < 0 && item.x < -item.w) item.x = WIDTH + item.w;
-          });
-        });
-
-        const frogRect = { x: frog.x + 2, y: frog.y + 2 };
-
-        for (const lane of lanes) {
-          if (lane.type === 'road' && lane.row === frog.row) {
-            for (const car of lane.items) {
-              const carRect = { x: car.x, y: laneY(lane.row), w: car.w, h: car.h };
-              if (overlaps(frogRect, carRect)) {
-                deaths += 1;
-                resetFrog();
-                return;
-              }
-            }
-          }
-
-          if (lane.type === 'river' && lane.row === frog.row) {
-            let onLog = false;
-            for (const log of lane.items) {
-              const logRect = { x: log.x, y: laneY(lane.row), w: log.w, h: log.h };
-              if (overlaps(frogRect, logRect)) {
-                frog.x += lane.speed * dt;
-                frog.col = Math.round(frog.x / TILE);
-                onLog = true;
-              }
-            }
-            if (!onLog) {
-              deaths += 1;
-              resetFrog();
-              return;
-            }
-          }
+        if (activeLane.type === 'road') {
+          const wasHit = activeLane.items.some((car) => overlaps(frogRect, { x: car.x + 2, y: laneY(activeLane.row), w: car.w - 4, h: car.h }));
+          if (wasHit) loseFrog('road');
+          return;
         }
 
-        frog.x = Math.max(0, Math.min(WIDTH - TILE, frog.x));
+        const support = activeLane.items.find((log) => {
+          const logRect = { x: log.x, y: laneY(activeLane.row), w: log.w, h: log.h };
+          return overlaps(frogRect, logRect) && overlapWidth(frogRect, logRect) >= frogRect.w * .48;
+        });
+        if (!support) {
+          loseFrog('water');
+          return;
+        }
+
+        frog.x += activeLane.speed * dt;
         frog.col = Math.round(frog.x / TILE);
 
-        if (frog.row === Y.GOAL) {
-          score += 1;
-          resetFrog();
+        // Для геймдизайнера: бревно может вынести лягушку за экран — это опасность реки,
+        // а не бесплатная невидимая стенка, которой раньше становился clamp.
+        if (frog.x + TILE * .55 < 0 || frog.x + TILE * .45 > WIDTH) loseFrog('water');
+      }
+
+      function update(dt) {
+        if (paused) return;
+        elapsed += dt;
+        frog.hop = Math.max(0, frog.hop - dt * 5.5);
+        screenFlash = Math.max(0, screenFlash - dt);
+        if (messageTimer > 0) {
+          messageTimer -= dt;
+          if (messageTimer <= 0) setMessage('Reach the moon garden', 0);
         }
+
+        updateLaneItems(dt);
+        updateFrogSafety(dt);
+
+        if (frog.row === ROW.GOAL) {
+          score += 1;
+          spawnParticles(frog.x + TILE / 2, TILE / 2, 'goal');
+          setMessage('Moon garden reached!');
+          resetFrog();
+          updateHud();
+        }
+
+        particles.forEach((particle) => {
+          particle.x += particle.vx * dt;
+          particle.y += particle.vy * dt;
+          particle.vx *= Math.pow(.96, dt * 60);
+          particle.vy *= Math.pow(.96, dt * 60);
+          particle.life -= dt;
+        });
+        particles = particles.filter((particle) => particle.life > 0);
+      }
+
+      function roundedRect(x, y, width, height, radius) {
+        ctx.beginPath(); ctx.roundRect(x, y, width, height, radius);
       }
 
       function drawBackground() {
-        ctx.clearRect(0, 0, WIDTH, HEIGHT);
+        const grass = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+        grass.addColorStop(0, '#245d3d'); grass.addColorStop(1, '#173d2a');
+        ctx.fillStyle = grass; ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-        ctx.fillStyle = '#1a4d1f';
-        ctx.fillRect(0, Y.GOAL * TILE, WIDTH, TILE);
-        ctx.fillRect(0, Y.START * TILE, WIDTH, TILE);
+        grassDetails.forEach((detail) => {
+          if (RIVER_ROWS.includes(Math.floor(detail.y / TILE)) || ROAD_ROWS.includes(Math.floor(detail.y / TILE))) return;
+          ctx.strokeStyle = `rgba(166, 255, 179, ${detail.alpha})`;
+          ctx.beginPath(); ctx.moveTo(detail.x, detail.y); ctx.lineTo(detail.x + 1.5, detail.y - detail.length); ctx.stroke();
+        });
 
-        ctx.fillStyle = '#13548f';
-        RIVER_ROWS.forEach((row) => ctx.fillRect(0, row * TILE, WIDTH, TILE));
+        RIVER_ROWS.forEach((row) => {
+          const river = ctx.createLinearGradient(0, row * TILE, 0, (row + 1) * TILE);
+          river.addColorStop(0, '#0d5570'); river.addColorStop(.5, '#0a405b'); river.addColorStop(1, '#082f49');
+          ctx.fillStyle = river; ctx.fillRect(0, row * TILE, WIDTH, TILE);
+          ctx.strokeStyle = 'rgba(135, 231, 255, .18)';
+          for (let x = -60; x < WIDTH + 60; x += 80) {
+            const waveX = x + ((elapsed * (row % 2 ? -24 : 18)) % 80);
+            ctx.beginPath(); ctx.moveTo(waveX, row * TILE + 11); ctx.quadraticCurveTo(waveX + 14, row * TILE + 6, waveX + 29, row * TILE + 11); ctx.stroke();
+          }
+        });
 
-        ctx.fillStyle = '#31343c';
-        ROAD_ROWS.forEach((row) => ctx.fillRect(0, row * TILE, WIDTH, TILE));
+        ROAD_ROWS.forEach((row) => {
+          const road = ctx.createLinearGradient(0, row * TILE, 0, (row + 1) * TILE);
+          road.addColorStop(0, '#292d36'); road.addColorStop(.5, '#22262e'); road.addColorStop(1, '#171b22');
+          ctx.fillStyle = road; ctx.fillRect(0, row * TILE, WIDTH, TILE);
+          ctx.fillStyle = 'rgba(244, 229, 156, .28)';
+          for (let x = 12; x < WIDTH; x += 52) ctx.fillRect(x, row * TILE + TILE - 2, 27, 1);
+        });
 
-        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-        for (let row = 0; row < ROWS; row += 1) {
-          ctx.beginPath();
-          ctx.moveTo(0, row * TILE);
-          ctx.lineTo(WIDTH, row * TILE);
-          ctx.stroke();
+        ctx.fillStyle = 'rgba(195, 239, 178, .12)';
+        ctx.fillRect(0, ROW.MEDIAN * TILE, WIDTH, 2);
+        ctx.fillStyle = 'rgba(230,255,223,.15)';
+        for (let x = 8; x < WIDTH; x += TILE * 2) {
+          ctx.beginPath(); ctx.arc(x, 18, 4, 0, Math.PI * 2); ctx.fill();
         }
+      }
+
+      function drawLog(item, row) {
+        const y = laneY(row);
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,.38)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 4;
+        const wood = ctx.createLinearGradient(item.x, y, item.x, y + item.h);
+        wood.addColorStop(0, '#b87843'); wood.addColorStop(.45, '#81502f'); wood.addColorStop(1, '#51301f');
+        ctx.fillStyle = wood; roundedRect(item.x, y, item.w, item.h, 14); ctx.fill();
+        ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+        ctx.strokeStyle = 'rgba(255,210,147,.24)'; ctx.lineWidth = 1.2;
+        for (let x = item.x + 20; x < item.x + item.w - 12; x += 31) {
+          ctx.beginPath(); ctx.moveTo(x, y + 5); ctx.quadraticCurveTo(x + 8, y + item.h / 2, x - 1, y + item.h - 5); ctx.stroke();
+        }
+        ctx.fillStyle = '#4f3222'; ctx.beginPath(); ctx.ellipse(item.x + item.w - 8, y + item.h / 2, 7, item.h * .38, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#c88a53'; ctx.beginPath(); ctx.ellipse(item.x + item.w - 8, y + item.h / 2, 4, item.h * .24, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawCar(item, lane) {
+        const y = laneY(lane.row);
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 4;
+        const paint = ctx.createLinearGradient(item.x, y, item.x, y + item.h);
+        paint.addColorStop(0, '#fff'); paint.addColorStop(.08, lane.color); paint.addColorStop(1, lane.color);
+        ctx.fillStyle = paint; roundedRect(item.x, y + 2, item.w, item.h - 4, 9); ctx.fill();
+        ctx.shadowBlur = 0;
+        const cabinX = item.x + item.w * (lane.speed > 0 ? .43 : .22);
+        ctx.fillStyle = '#15394c'; roundedRect(cabinX, y + 7, item.w * .36, item.h - 14, 5); ctx.fill();
+        ctx.fillStyle = 'rgba(176,235,255,.5)'; ctx.fillRect(cabinX + 4, y + 9, item.w * .13, item.h - 18);
+        ctx.fillStyle = '#11151b';
+        ctx.fillRect(item.x + 10, y, 12, 4); ctx.fillRect(item.x + item.w - 22, y, 12, 4);
+        ctx.fillRect(item.x + 10, y + item.h - 4, 12, 4); ctx.fillRect(item.x + item.w - 22, y + item.h - 4, 12, 4);
+        ctx.fillStyle = lane.speed > 0 ? '#fff1a8' : '#ff6a6a';
+        const lightX = lane.speed > 0 ? item.x + item.w - 4 : item.x;
+        ctx.fillRect(lightX, y + 9, 4, 6); ctx.fillRect(lightX, y + item.h - 15, 4, 6);
+        ctx.restore();
+      }
+
+      function drawFrog() {
+        const cx = frog.x + TILE / 2;
+        const cy = frog.row * TILE + TILE / 2;
+        const hopScale = 1 + Math.sin(frog.hop * Math.PI) * .13;
+        const rotations = { up: 0, right: Math.PI / 2, down: Math.PI, left: -Math.PI / 2 };
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(rotations[frog.facing]);
+        ctx.scale(hopScale, hopScale);
+        ctx.shadowColor = '#5dff82'; ctx.shadowBlur = 13;
+        ctx.fillStyle = '#2a9b50';
+        ctx.beginPath(); ctx.ellipse(-11, 8, 9, 5, -.45, 0, Math.PI * 2); ctx.ellipse(11, 8, 9, 5, .45, 0, Math.PI * 2); ctx.fill();
+        const body = ctx.createRadialGradient(-5, -7, 2, 0, 2, 19);
+        body.addColorStop(0, '#b4ff83'); body.addColorStop(.5, '#55d76e'); body.addColorStop(1, '#168346');
+        ctx.fillStyle = body; ctx.beginPath(); ctx.ellipse(0, 3, 15, 17, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#8ff77a'; ctx.beginPath(); ctx.arc(-9, -10, 7, 0, Math.PI * 2); ctx.arc(9, -10, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#f4ffe7'; ctx.beginPath(); ctx.arc(-9, -11, 4.3, 0, Math.PI * 2); ctx.arc(9, -11, 4.3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#10251b'; ctx.beginPath(); ctx.arc(-9, -12, 2, 0, Math.PI * 2); ctx.arc(9, -12, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(10,75,37,.65)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 2, 7, .2, Math.PI - .2); ctx.stroke();
+        ctx.restore();
       }
 
       function draw() {
         drawBackground();
-
-        lanes.forEach((lane) => {
-          lane.items.forEach((item) => {
-            if (lane.type === 'road') {
-              ctx.fillStyle = '#f37935';
-            } else {
-              ctx.fillStyle = '#8a5a2d';
-            }
-            ctx.fillRect(item.x, laneY(lane.row), item.w, item.h);
-          });
+        lanes.forEach((lane) => lane.items.forEach((item) => lane.type === 'road' ? drawCar(item, lane) : drawLog(item, lane.row)));
+        particles.forEach((particle) => {
+          ctx.globalAlpha = Math.min(1, particle.life * 2); ctx.fillStyle = particle.color;
+          ctx.beginPath(); ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2); ctx.fill();
         });
+        ctx.globalAlpha = 1;
+        drawFrog();
 
-        ctx.fillStyle = '#42f56f';
-        ctx.fillRect(frog.x + 3, frog.y + 3, TILE - 6, TILE - 6);
-
-        hud.textContent = `Score: ${score} | Deaths: ${deaths}`;
+        if (screenFlash > 0) {
+          ctx.fillStyle = `rgba(255, 105, 100, ${screenFlash * .24})`; ctx.fillRect(0, 0, WIDTH, HEIGHT);
+        }
+        if (paused) {
+          ctx.fillStyle = 'rgba(4, 17, 18, .72)'; ctx.fillRect(0, 0, WIDTH, HEIGHT);
+          ctx.textAlign = 'center'; ctx.fillStyle = '#f1fff5'; ctx.font = '800 34px Inter, sans-serif'; ctx.fillText('Crossing paused', WIDTH / 2, HEIGHT / 2);
+          ctx.fillStyle = '#a0bcb2'; ctx.font = '15px Inter, sans-serif'; ctx.fillText('Press P to continue', WIDTH / 2, HEIGHT / 2 + 28); ctx.textAlign = 'start';
+        }
       }
 
-      // Fixed timestep keeps speed consistent on slow and fast machines.
-      let last = performance.now();
+      // Для программиста: фиксированный шаг оставляет одинаковыми скорость трафика
+      // и результат столкновений на мониторах с разной частотой обновления.
+      let previousTime = performance.now();
       let accumulator = 0;
-      const STEP = 1 / 120;
-
+      const FIXED_STEP = 1 / 120;
       function frame(now) {
-        const delta = Math.min((now - last) / 1000, 0.1);
-        last = now;
+        const delta = Math.min((now - previousTime) / 1000, .1);
+        previousTime = now;
         accumulator += delta;
-
-        while (accumulator >= STEP) {
-          update(STEP);
-          accumulator -= STEP;
+        while (accumulator >= FIXED_STEP) {
+          update(FIXED_STEP);
+          accumulator -= FIXED_STEP;
         }
-
         draw();
         requestAnimationFrame(frame);
       }
 
+      document.addEventListener('visibilitychange', () => { if (document.hidden) paused = true; });
+      resetRun();
       requestAnimationFrame(frame);
     </script>
   </body>

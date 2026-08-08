@@ -3,94 +3,201 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tic-Tac-Toe</title>
+    <title>Tic-Tac-Toe — Afterglow</title>
     <link rel="icon" href="/favicons/tic-tac-toe.svg" type="image/svg+xml" />
     <style>
+      :root { color-scheme: dark; --x: #58e7ff; --o: #ff7198; --ink: #f5f3ff; --muted: #a8a4bd; }
+      * { box-sizing: border-box; }
       body {
-        font-family: sans-serif;
-        background: #20242b;
-        color: #fff;
-        text-align: center;
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at 15% 15%, rgba(50, 164, 213, .2), transparent 30rem),
+          radial-gradient(circle at 85% 85%, rgba(203, 57, 119, .18), transparent 28rem),
+          #090814;
+        color: var(--ink);
+        font-family: Inter, "Segoe UI", sans-serif;
       }
-
+      main { width: min(92vw, 480px); padding: 28px 0; text-align: center; }
+      .eyebrow { margin: 0; color: #baa6ff; font-size: .7rem; font-weight: 900; letter-spacing: .25em; text-transform: uppercase; }
+      h1 { margin: 2px 0 7px; font-size: clamp(2.4rem, 11vw, 4.5rem); line-height: 1; letter-spacing: -.07em; }
+      #status { margin: 0 0 14px; min-height: 1.5em; color: #c8c4d9; font-weight: 750; }
+      .scoreboard {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        margin-bottom: 11px;
+      }
+      .score {
+        min-width: 90px;
+        padding: 8px 12px;
+        border: 1px solid rgba(255,255,255,.08);
+        border-radius: 12px;
+        background: rgba(255,255,255,.035);
+        color: var(--muted);
+        font-size: .68rem;
+        font-weight: 850;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+      }
+      .score strong { display: block; margin-top: 2px; color: white; font-size: 1.15rem; }
+      .board-shell {
+        position: relative;
+        padding: 12px;
+        border: 1px solid rgba(194, 179, 255, .2);
+        border-radius: 25px;
+        background: linear-gradient(145deg, rgba(31, 27, 54, .92), rgba(16, 14, 30, .94));
+        box-shadow: 0 30px 80px rgba(0,0,0,.5), inset 0 1px rgba(255,255,255,.07);
+      }
       .grid {
-        width: 306px;
-        margin: 20px auto;
         display: grid;
         grid-template-columns: repeat(3, 1fr);
-        gap: 3px;
+        gap: 8px;
+        width: 100%;
+        aspect-ratio: 1;
       }
-
       .cell {
-        height: 100px;
-        background: #2f3642;
-        font-size: 64px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 100%;
+        min-width: 0;
+        aspect-ratio: 1;
+        padding: 0;
+        border: 1px solid rgba(255,255,255,.075);
+        border-radius: 18px;
+        overflow: hidden;
+        background: linear-gradient(145deg, rgba(50, 46, 78, .8), rgba(24, 22, 42, .88));
+        color: white;
+        font: 800 clamp(3rem, 18vw, 5.6rem)/1 Inter, sans-serif;
+        cursor: pointer;
+        transition: transform 150ms ease, border-color 180ms ease, background 180ms ease;
+      }
+      .cell::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at 35% 28%, rgba(255,255,255,.08), transparent 55%);
+        pointer-events: none;
+      }
+      .cell:not(:disabled):hover { transform: translateY(-2px); border-color: rgba(255,255,255,.28); background: linear-gradient(145deg, #403965, #211e38); }
+      .cell:focus-visible, .action:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+      .cell.x { color: var(--x); text-shadow: 0 0 22px rgba(88,231,255,.52); animation: mark-in 220ms cubic-bezier(.2,.9,.25,1.25); }
+      .cell.o { color: var(--o); text-shadow: 0 0 22px rgba(255,113,152,.48); animation: mark-in 220ms cubic-bezier(.2,.9,.25,1.25); }
+      .cell.winner { border-color: currentColor; background: rgba(255,255,255,.09); animation: winner-pulse 900ms ease-in-out infinite alternate; }
+      .cell:disabled { cursor: default; opacity: 1; }
+      .actions { display: flex; justify-content: center; gap: 9px; margin-top: 15px; }
+      .action {
+        padding: 10px 19px;
+        border: 1px solid rgba(190, 171, 255, .32);
+        border-radius: 999px;
+        background: rgba(62, 51, 102, .66);
+        color: var(--ink);
+        font: inherit;
+        font-weight: 800;
         cursor: pointer;
       }
+      .action:hover { background: rgba(91, 72, 148, .72); }
+      @keyframes mark-in { from { transform: scale(.55) rotate(-8deg); opacity: 0; } }
+      @keyframes winner-pulse { to { box-shadow: inset 0 0 25px currentColor, 0 0 18px color-mix(in srgb, currentColor 30%, transparent); } }
+      @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
     </style>
   </head>
   <body>
-    <h1>Tic-Tac-Toe</h1>
-    <p id="status">Turn: X</p>
-    <div class="grid" id="grid"></div>
-    <button onclick="resetGame()">Reset</button>
+    <main>
+      <p class="eyebrow">Afterglow</p>
+      <h1>Tic-Tac-Toe</h1>
+      <p id="status" aria-live="polite">Turn: X</p>
+      <div class="scoreboard" aria-label="Match score">
+        <span class="score">X wins<strong id="xWins">0</strong></span>
+        <span class="score">Draws<strong id="draws">0</strong></span>
+        <span class="score">O wins<strong id="oWins">0</strong></span>
+      </div>
+      <section class="board-shell">
+        <div class="grid" id="grid" role="grid" aria-label="Tic-tac-toe board"></div>
+      </section>
+      <div class="actions">
+        <button class="action" id="resetButton" type="button">Reset</button>
+        <button class="action" id="clearScoreButton" type="button">Clear score</button>
+      </div>
+    </main>
 
     <script>
       const grid = document.getElementById('grid');
       const statusText = document.getElementById('status');
+      const resetButton = document.getElementById('resetButton');
+      const clearScoreButton = document.getElementById('clearScoreButton');
+      const xWinsEl = document.getElementById('xWins');
+      const oWinsEl = document.getElementById('oWins');
+      const drawsEl = document.getElementById('draws');
 
-      let board = Array(9).fill('');
-      let currentPlayer = 'X';
-      let isFinished = false;
-
-      const winningLines = [
-        [0, 1, 2],
-        [3, 4, 5],
-        [6, 7, 8],
-        [0, 3, 6],
-        [1, 4, 7],
-        [2, 5, 8],
-        [0, 4, 8],
-        [2, 4, 6],
+      const WINNING_LINES = [
+        [0, 1, 2], [3, 4, 5], [6, 7, 8],
+        [0, 3, 6], [1, 4, 7], [2, 5, 8],
+        [0, 4, 8], [2, 4, 6],
       ];
+      const cells = Array.from({ length: 9 }, (_, index) => {
+        const cell = document.createElement('button');
+        cell.className = 'cell';
+        cell.type = 'button';
+        cell.setAttribute('role', 'gridcell');
+        cell.addEventListener('click', () => play(index));
+        grid.appendChild(cell);
+        return cell;
+      });
+
+      let board;
+      let currentPlayer;
+      let isFinished;
+      let winningLine;
+      let matchScore = { X: 0, O: 0, draws: 0 };
 
       function getWinningLine() {
-        return winningLines.find((line) =>
-          line.every((i) => board[i] && board[i] === board[line[0]]),
-        );
+        return WINNING_LINES.find((line) => {
+          const [first, ...rest] = line;
+          return board[first] && rest.every((index) => board[index] === board[first]);
+        }) || null;
+      }
+
+      function updateScoreboard() {
+        xWinsEl.textContent = String(matchScore.X);
+        oWinsEl.textContent = String(matchScore.O);
+        drawsEl.textContent = String(matchScore.draws);
       }
 
       function render() {
-        grid.innerHTML = '';
-
-        board.forEach((value, index) => {
-          const cell = document.createElement('div');
-          cell.className = 'cell';
+        cells.forEach((cell, index) => {
+          const value = board[index];
           cell.textContent = value;
-          cell.addEventListener('click', () => play(index));
-          grid.appendChild(cell);
+          cell.className = `cell${value ? ` ${value.toLowerCase()}` : ''}${winningLine?.includes(index) ? ' winner' : ''}`;
+          cell.disabled = isFinished || Boolean(value);
+          cell.setAttribute('aria-label', `Cell ${index + 1}: ${value || 'empty'}`);
         });
 
-        const line = getWinningLine();
-        if (line) {
-          isFinished = true;
-          statusText.textContent = `Winner: ${board[line[0]]}`;
-        } else if (board.every(Boolean)) {
-          isFinished = true;
-          statusText.textContent = 'Draw';
-        } else {
-          statusText.textContent = `Turn: ${currentPlayer}`;
-        }
+        if (winningLine) statusText.textContent = `Winner: ${board[winningLine[0]]}`;
+        else if (isFinished) statusText.textContent = 'Draw';
+        else statusText.textContent = `Turn: ${currentPlayer}`;
       }
 
       function play(index) {
         if (isFinished || board[index]) return;
-
         board[index] = currentPlayer;
-        currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+        winningLine = getWinningLine();
+
+        // Для программиста: финал партии вычисляется до смены игрока — состояние и статус
+        // всегда относятся к сделавшему последний ход участнику.
+        if (winningLine) {
+          isFinished = true;
+          matchScore[currentPlayer] += 1;
+        } else if (board.every(Boolean)) {
+          isFinished = true;
+          matchScore.draws += 1;
+        } else {
+          currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+        }
+        updateScoreboard();
         render();
       }
 
@@ -98,10 +205,22 @@
         board = Array(9).fill('');
         currentPlayer = 'X';
         isFinished = false;
+        winningLine = null;
         render();
       }
 
-      render();
+      function clearScore() {
+        // Для геймдизайнера: Reset начинает новый раунд, но сохраняет мета-счёт серии;
+        // отдельная команда очищает всю встречу, поэтому случайный сброс не стирает прогресс.
+        matchScore = { X: 0, O: 0, draws: 0 };
+        updateScoreboard();
+        resetGame();
+      }
+
+      resetButton.addEventListener('click', resetGame);
+      clearScoreButton.addEventListener('click', clearScore);
+      resetGame();
+      updateScoreboard();
     </script>
   </body>
 </html>

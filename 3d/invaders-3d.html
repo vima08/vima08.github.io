@@ -1,16 +1,445 @@
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>3D Space Invaders</title>
-    <link rel="icon" href="/favicons/invaders-3d.svg" type="image/svg+xml" />
-<style>*{box-sizing:border-box}body{margin:0;overflow:hidden;font-family:Arial,sans-serif;color:#fff;background:#020510}#game{position:fixed;inset:0}.hud{position:fixed;z-index:2;top:16px;left:16px;width:min(410px,calc(100vw - 32px));padding:15px 18px;border:1px solid #57ff9955;border-radius:14px;background:#04100dcc;backdrop-filter:blur(8px)}h1{margin:0 0 7px;font-size:24px}p{margin:6px 0;color:#c7efdd;line-height:1.35}#status{color:#fff;font-weight:bold}a{color:#77ffc2}</style></head>
-<body><div id="game"></div><section class="hud"><h1>3D Space Invaders</h1><p>Move: ← → or A D &nbsp; Fire: Space &nbsp; Reset: R</p><p>Defend the glowing outpost from the descending fleet.</p><p id="status"></p><p><a href="/index.html">← Back to games</a></p></section>
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script><script>
-const scene=new THREE.Scene();scene.background=new THREE.Color(0x020510);scene.fog=new THREE.FogExp2(0x020510,.025);const camera=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,.1,100);camera.position.set(0,15,19);camera.lookAt(0,0,-5);const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);document.getElementById('game').appendChild(renderer.domElement);scene.add(new THREE.HemisphereLight(0x88aaff,0x030307,1.5));
-const starsGeo=new THREE.BufferGeometry(),points=[];for(let i=0;i<500;i++)points.push((Math.random()-.5)*80,Math.random()*35-2,-Math.random()*70+10);starsGeo.setAttribute('position',new THREE.Float32BufferAttribute(points,3));scene.add(new THREE.Points(starsGeo,new THREE.PointsMaterial({color:0xffffff,size:.08})));
-const ground=new THREE.Mesh(new THREE.PlaneGeometry(34,42),new THREE.MeshStandardMaterial({color:0x07152a,roughness:.75,metalness:.35}));ground.rotation.x=-Math.PI/2;ground.position.y=-.6;ground.position.z=-5;scene.add(ground);const grid=new THREE.GridHelper(40,40,0x1bff86,0x12305a);grid.position.y=-.55;grid.position.z=-5;scene.add(grid);
-const ship=new THREE.Group();const shipMat=new THREE.MeshStandardMaterial({color:0x41f59a,emissive:0x0a5d39});const hull=new THREE.Mesh(new THREE.BoxGeometry(2.6,.65,1.2),shipMat),nose=new THREE.Mesh(new THREE.ConeGeometry(.55,1.8,4),shipMat);nose.rotation.x=-Math.PI/2;nose.position.set(0,.2,-1);ship.add(hull,nose);ship.position.set(0,0,11);scene.add(ship);
-const enemies=[],enemyMat=new THREE.MeshStandardMaterial({color:0xff5577,emissive:0x7a102a});function makeEnemy(x,z){const g=new THREE.Group(),body=new THREE.Mesh(new THREE.SphereGeometry(.62,16,10),enemyMat),ring=new THREE.Mesh(new THREE.TorusGeometry(.72,.13,8,20),enemyMat);ring.rotation.x=Math.PI/2;g.add(body,ring);g.position.set(x,.1,z);scene.add(g);enemies.push(g)}for(let r=0;r<4;r++)for(let c=0;c<8;c++)makeEnemy((c-3.5)*2.15,-12+r*2);
-const shots=[],enemyShots=[],shotGeo=new THREE.BoxGeometry(.15,.15,.8),shotMat=new THREE.MeshBasicMaterial({color:0x7dffcf}),badShotMat=new THREE.MeshBasicMaterial({color:0xff426c});function fire(list,x,z,dz,mat){const s=new THREE.Mesh(shotGeo,mat);s.position.set(x,.2,z);s.userData.dz=dz;scene.add(s);list.push(s)}
-const keys=new Set(),status=document.getElementById('status');let score=0,lives=3,direction=1,speed=.018,lastFire=0,lastEnemyFire=0,ended=false;function update(msg='Fleet approaching'){status.textContent=`Score: ${score} | Shields: ${lives} | ${msg}`};function clearShots(list){list.splice(0).forEach(s=>scene.remove(s))}function reset(){score=0;lives=3;direction=1;speed=.018;ended=false;ship.position.x=0;enemies.forEach((e,i)=>{const r=Math.floor(i/8),c=i%8;e.position.set((c-3.5)*2.15,.1,-12+r*2);e.visible=true;e.userData.dead=false});clearShots(shots);clearShots(enemyShots);update()}
-addEventListener('keydown',e=>{keys.add(e.key.toLowerCase());if(e.key===' '){e.preventDefault();if(!ended&&performance.now()-lastFire>260){fire(shots,ship.position.x,10,-.48,shotMat);lastFire=performance.now()}}if(e.key.toLowerCase()==='r')reset()});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));reset();
-function animate(t){requestAnimationFrame(animate);if(!ended){if(keys.has('arrowleft')||keys.has('a'))ship.position.x-=.16;if(keys.has('arrowright')||keys.has('d'))ship.position.x+=.16;ship.position.x=THREE.MathUtils.clamp(ship.position.x,-14,14);let edge=false;enemies.forEach(e=>{if(!e.userData.dead){e.position.x+=direction*speed;if(Math.abs(e.position.x)>14)edge=true;e.rotation.y+=.012}});if(edge){direction*=-1;enemies.forEach(e=>{if(!e.userData.dead)e.position.z+=.65});speed+=.002}const alive=enemies.filter(e=>!e.userData.dead);if(alive.length&&t-lastEnemyFire>850){const e=alive[Math.floor(Math.random()*alive.length)];fire(enemyShots,e.position.x,e.position.z,.22,badShotMat);lastEnemyFire=t}shots.forEach(s=>{s.position.z+=s.userData.dz;alive.forEach(e=>{if(!e.userData.dead&&Math.abs(s.position.x-e.position.x)<.75&&Math.abs(s.position.z-e.position.z)<.65){e.userData.dead=true;e.visible=false;s.position.z=-100;score+=20}})});enemyShots.forEach(s=>{s.position.z+=s.userData.dz;if(Math.abs(s.position.x-ship.position.x)<1.4&&Math.abs(s.position.z-ship.position.z)<.7){s.position.z=100;lives--;update('Direct hit!')}});[shots,enemyShots].forEach(list=>{for(let i=list.length-1;i>=0;i--)if(Math.abs(list[i].position.z)>30){scene.remove(list[i]);list.splice(i,1)}});if(!lives||alive.some(e=>e.position.z>8)){ended=true;update('Game over — press R')}else if(enemies.every(e=>e.userData.dead)){ended=true;update('Outpost saved! Press R')}}renderer.render(scene,camera)}addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});animate(0);
-</script><script src="fps-counter.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Last Outpost — 3D Space Invaders</title>
+  <link rel="icon" href="/favicons/invaders-3d.svg" type="image/svg+xml" />
+  <style>
+    * { box-sizing: border-box; }
+    :root { color-scheme: dark; }
+    body { margin: 0; overflow: hidden; color: #fff; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #02050c; user-select: none; }
+    #game, canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+    body::after { position: fixed; inset: 0; z-index: 1; pointer-events: none; content: ""; background: radial-gradient(circle at 50% 65%, transparent 12%, rgba(0, 3, 10, .72) 100%); box-shadow: inset 0 0 150px rgba(0, 0, 0, .65); }
+    .hud {
+      position: fixed;
+      z-index: 3;
+      top: clamp(14px, 2.2vw, 28px);
+      left: clamp(14px, 2.2vw, 28px);
+      width: min(420px, calc(100vw - 28px));
+      padding: 17px 19px;
+      border: 1px solid rgba(84, 255, 173, .22);
+      border-radius: 18px;
+      background: linear-gradient(145deg, rgba(5, 20, 20, .9), rgba(3, 10, 18, .72));
+      box-shadow: 0 24px 70px rgba(0, 0, 0, .4), inset 0 1px rgba(255, 255, 255, .06);
+      backdrop-filter: blur(16px) saturate(135%);
+    }
+    .eyebrow { color: #61ffb3; font-size: 10px; font-weight: 900; letter-spacing: .23em; text-transform: uppercase; }
+    h1 { margin: 5px 0 9px; font-size: clamp(23px, 4vw, 31px); line-height: 1; letter-spacing: -.045em; }
+    p { margin: 6px 0; color: #a8cfc5; font-size: 13px; line-height: 1.4; }
+    kbd { display: inline-grid; min-width: 24px; height: 23px; padding: 0 5px; place-items: center; border: 1px solid rgba(139, 255, 201, .24); border-radius: 6px; background: rgba(255, 255, 255, .055); box-shadow: inset 0 -2px rgba(0, 0, 0, .25); color: #effff8; font: 750 11px/1 inherit; }
+    .readout { display: flex; gap: 8px; margin: 13px 0 9px; }
+    .chip { flex: 1; padding: 9px 11px; border: 1px solid rgba(95, 255, 180, .13); border-radius: 10px; background: rgba(255, 255, 255, .035); }
+    .chip small { display: block; color: #6e968b; font-size: 8px; font-weight: 900; letter-spacing: .16em; }
+    .chip b { display: block; margin-top: 2px; font-size: 18px; font-variant-numeric: tabular-nums; }
+    #shields { color: #62ffb4; letter-spacing: .1em; }
+    #status { min-height: 19px; color: #fff; font-weight: 750; }
+    a { display: inline-block; margin-top: 7px; color: #79dcb0; font-size: 12px; text-decoration: none; }
+    a:hover { color: #75ffd0; }
+    .damage { position: fixed; inset: 0; z-index: 2; pointer-events: none; background: radial-gradient(circle, transparent 25%, rgba(255, 30, 82, .42)); opacity: 0; transition: opacity .15s; }
+    .damage.show { opacity: 1; }
+    @media (max-width: 620px) { .hud { padding: 14px 16px; } .hint { display: none; } }
+  </style>
+</head>
+<body>
+  <div id="game"></div>
+  <div id="damage" class="damage"></div>
+  <section class="hud" aria-label="Game information">
+    <div class="eyebrow">Defense Grid // Colony 09</div>
+    <h1>LAST OUTPOST</h1>
+    <p><kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd> move &nbsp; <kbd>Space</kbd> fire &nbsp; <kbd>R</kbd> reset</p>
+    <p class="hint">Break the descending formation before it reaches the colony perimeter.</p>
+    <div class="readout">
+      <div class="chip"><small>SCORE</small><b id="score">0000</b></div>
+      <div class="chip"><small>HOSTILES</small><b id="hostiles">32</b></div>
+      <div class="chip"><small>SHIELDS</small><b id="shields">◆ ◆ ◆</b></div>
+    </div>
+    <p id="status" aria-live="polite">Fleet approaching</p>
+    <a href="/index.html">← Back to games</a>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script>
+    (() => {
+      const scoreEl = document.getElementById('score');
+      const hostilesEl = document.getElementById('hostiles');
+      const shieldsEl = document.getElementById('shields');
+      const statusEl = document.getElementById('status');
+      const damageEl = document.getElementById('damage');
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x02050c);
+      scene.fog = new THREE.FogExp2(0x02050c, .024);
+
+      const camera = new THREE.PerspectiveCamera(57, innerWidth / innerHeight, .1, 110);
+      camera.position.set(0, 15.5, 19.5);
+      camera.lookAt(0, 0, -5);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      renderer.setSize(innerWidth, innerHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.18;
+      document.getElementById('game').appendChild(renderer.domElement);
+
+      scene.add(new THREE.HemisphereLight(0x89b8ff, 0x020507, 1.5));
+      const moonLight = new THREE.DirectionalLight(0xb8d7ff, 2.4);
+      moonLight.position.set(-8, 16, 7);
+      moonLight.castShadow = true;
+      moonLight.shadow.mapSize.set(2048, 2048);
+      scene.add(moonLight);
+      const outpostLight = new THREE.PointLight(0x35ff9b, 28, 28, 2);
+      outpostLight.position.set(0, 2, 11);
+      scene.add(outpostLight);
+
+      const starPositions = [];
+      const starColors = [];
+      for (let index = 0; index < 900; index += 1) {
+        starPositions.push((Math.random() - .5) * 90, Math.random() * 42 - 5, -Math.random() * 85 + 18);
+        const tint = .65 + Math.random() * .35;
+        starColors.push(tint * .7, tint * .85, tint);
+      }
+      const starsGeometry = new THREE.BufferGeometry();
+      starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
+      starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starColors, 3));
+      const stars = new THREE.Points(starsGeometry, new THREE.PointsMaterial({ size: .085, vertexColors: true, transparent: true, opacity: .85 }));
+      scene.add(stars);
+
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(34, 43),
+        new THREE.MeshStandardMaterial({ color: 0x061329, roughness: .58, metalness: .5 }),
+      );
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.set(0, -.62, -5);
+      ground.receiveShadow = true;
+      scene.add(ground);
+      const grid = new THREE.GridHelper(42, 42, 0x20ff94, 0x102d55);
+      grid.position.set(0, -.58, -5);
+      grid.material.transparent = true;
+      grid.material.opacity = .48;
+      scene.add(grid);
+
+      // Low-poly colony silhouettes frame the playfield without obscuring shots.
+      const towerMaterial = new THREE.MeshStandardMaterial({ color: 0x0b2134, emissive: 0x07172a, roughness: .55, metalness: .5 });
+      for (let index = 0; index < 18; index += 1) {
+        const side = index % 2 ? 1 : -1;
+        const height = .7 + Math.random() * 2.1;
+        const tower = new THREE.Mesh(new THREE.CylinderGeometry(.35, .55, height, 6), towerMaterial);
+        tower.position.set(side * (12.8 + Math.random() * 2.2), height / 2 - .55, 9 - Math.floor(index / 2) * 2.1);
+        tower.castShadow = true;
+        scene.add(tower);
+      }
+
+      const ship = new THREE.Group();
+      const shipMaterial = new THREE.MeshPhysicalMaterial({ color: 0x49f3a2, emissive: 0x0d7548, emissiveIntensity: .7, roughness: .22, metalness: .55, clearcoat: .8 });
+      const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x0b2330, metalness: .75, roughness: .24 });
+      const hull = new THREE.Mesh(new THREE.BoxGeometry(2.55, .55, 1.05), shipMaterial);
+      const nose = new THREE.Mesh(new THREE.ConeGeometry(.52, 1.75, 4), shipMaterial);
+      nose.rotation.x = -Math.PI / 2;
+      nose.position.set(0, .12, -1.15);
+      const cockpit = new THREE.Mesh(new THREE.SphereGeometry(.45, 16, 9), darkMaterial);
+      cockpit.scale.set(1, .55, 1.25);
+      cockpit.position.set(0, .38, -.15);
+      const engineMaterial = new THREE.MeshBasicMaterial({ color: 0x8affd1 });
+      [-.72, .72].forEach((x) => {
+        const engine = new THREE.Mesh(new THREE.ConeGeometry(.14, .65, 10), engineMaterial);
+        engine.rotation.x = Math.PI / 2;
+        engine.position.set(x, 0, .82);
+        ship.add(engine);
+      });
+      hull.castShadow = nose.castShadow = true;
+      ship.add(hull, nose, cockpit);
+      ship.position.set(0, 0, 11);
+      scene.add(ship);
+
+      const enemies = [];
+      const enemyPalette = [0xff4f7d, 0xff6b74, 0xda62ff, 0xb267ff];
+      function makeEnemy(x, z, row, column) {
+        const group = new THREE.Group();
+        const color = enemyPalette[row];
+        const material = new THREE.MeshPhysicalMaterial({ color, emissive: color, emissiveIntensity: .42, roughness: .3, metalness: .38, clearcoat: .6 });
+        const body = new THREE.Mesh(new THREE.SphereGeometry(.58, 16, 10), material);
+        body.scale.y = .72;
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(.7, .12, 8, 20), material);
+        ring.rotation.x = Math.PI / 2;
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(.12, 10, 7), new THREE.MeshBasicMaterial({ color: 0xfff2d0 }));
+        eye.position.set(0, .08, .53);
+        const pupil = new THREE.Mesh(new THREE.SphereGeometry(.055, 8, 6), new THREE.MeshBasicMaterial({ color: 0x160719 }));
+        pupil.position.z = .1;
+        eye.add(pupil);
+        group.add(body, ring, eye);
+        group.position.set(x, .1, z);
+        group.userData = { dead: false, row, column };
+        scene.add(group);
+        enemies.push(group);
+      }
+      for (let row = 0; row < 4; row += 1) {
+        for (let column = 0; column < 8; column += 1) makeEnemy((column - 3.5) * 2.15, -12 + row * 2, row, column);
+      }
+
+      const playerShots = [];
+      const enemyShots = [];
+      const particles = [];
+      const shotGeometry = new THREE.CapsuleGeometry(.075, .7, 3, 8);
+      const playerShotMaterial = new THREE.MeshBasicMaterial({ color: 0x75ffd0 });
+      const enemyShotMaterial = new THREE.MeshBasicMaterial({ color: 0xff3c70 });
+
+      function fire(list, x, z, velocityZ, material) {
+        const shot = new THREE.Mesh(shotGeometry, material);
+        shot.rotation.x = Math.PI / 2;
+        shot.position.set(x, .2, z);
+        shot.userData.velocityZ = velocityZ;
+        scene.add(shot);
+        list.push(shot);
+      }
+
+      function burst(position, color, count = 12) {
+        for (let index = 0; index < count; index += 1) {
+          const particle = new THREE.Mesh(
+            new THREE.IcosahedronGeometry(.04 + Math.random() * .08, 0),
+            new THREE.MeshBasicMaterial({ color, transparent: true }),
+          );
+          particle.position.copy(position);
+          particle.userData.velocity = new THREE.Vector3((Math.random() - .5) * 4, Math.random() * 2.5, (Math.random() - .5) * 4);
+          particle.userData.life = .45 + Math.random() * .3;
+          scene.add(particle);
+          particles.push(particle);
+        }
+      }
+
+      const keys = new Set();
+      const clock = new THREE.Clock();
+      let score = 0;
+      let lives = 3;
+      let direction = 1;
+      let fleetSpeed = 1.1;
+      let lastPlayerFire = -1;
+      let lastEnemyFire = 0;
+      let invulnerability = 0;
+      let ended = false;
+      let stateMessage = 'Fleet approaching';
+
+      function livingEnemies() {
+        return enemies.filter((enemy) => !enemy.userData.dead);
+      }
+
+      function updateHud() {
+        const alive = livingEnemies().length;
+        scoreEl.textContent = String(score).padStart(4, '0');
+        hostilesEl.textContent = alive;
+        shieldsEl.textContent = lives > 0 ? '◆ '.repeat(lives).trim() : '—';
+        statusEl.textContent = stateMessage;
+      }
+
+      function clearShots(list) {
+        list.splice(0).forEach((shot) => scene.remove(shot));
+      }
+
+      function reset() {
+        score = 0;
+        lives = 3;
+        direction = 1;
+        fleetSpeed = 1.1;
+        ended = false;
+        invulnerability = 1;
+        lastPlayerFire = -1;
+        lastEnemyFire = clock.elapsedTime;
+        stateMessage = 'Fleet approaching';
+        ship.position.x = 0;
+        ship.visible = true;
+        enemies.forEach((enemy, index) => {
+          const row = Math.floor(index / 8);
+          const column = index % 8;
+          enemy.position.set((column - 3.5) * 2.15, .1, -12 + row * 2);
+          enemy.rotation.set(0, 0, 0);
+          enemy.visible = true;
+          enemy.userData.dead = false;
+        });
+        clearShots(playerShots);
+        clearShots(enemyShots);
+        particles.splice(0).forEach((particle) => scene.remove(particle));
+        updateHud();
+      }
+
+      function playerFire(time) {
+        if (ended || time - lastPlayerFire < .22) return;
+        fire(playerShots, ship.position.x, 9.95, -28, playerShotMaterial);
+        lastPlayerFire = time;
+      }
+
+      // Для геймдизайнера: стреляет только ближайший к базе пришелец в каждом
+      // столбце. Огонь выглядит честным — снаряды не проходят сквозь союзников.
+      function frontLineInvaders() {
+        const byColumn = new Map();
+        livingEnemies().forEach((enemy) => {
+          const column = enemy.userData.column;
+          const current = byColumn.get(column);
+          if (!current || enemy.position.z > current.position.z) byColumn.set(column, enemy);
+        });
+        return [...byColumn.values()];
+      }
+
+      function hitShip(shot) {
+        shot.userData.consumed = true;
+        if (invulnerability > 0 || ended) return;
+        lives -= 1;
+        invulnerability = 1.15;
+        burst(ship.position, 0x50ffb1, 22);
+        damageEl.classList.add('show');
+        setTimeout(() => damageEl.classList.remove('show'), 140);
+        if (lives <= 0) {
+          lives = 0;
+          ended = true;
+          ship.visible = false;
+          stateMessage = 'Outpost lost — press R to rebuild';
+        } else {
+          stateMessage = 'Direct hit — shields recovering';
+        }
+        updateHud();
+      }
+
+      function destroyEnemy(enemy, shot) {
+        enemy.userData.dead = true;
+        enemy.visible = false;
+        shot.userData.consumed = true;
+        score += 20;
+        burst(enemy.position, enemy.material?.color || 0xff5577, 14);
+        stateMessage = 'Hostile down';
+        updateHud();
+      }
+
+      addEventListener('keydown', (event) => {
+        keys.add(event.key.toLowerCase());
+        if (event.code === 'Space') {
+          event.preventDefault();
+          playerFire(clock.elapsedTime);
+        }
+        if (event.key.toLowerCase() === 'r') reset();
+      });
+      addEventListener('keyup', (event) => keys.delete(event.key.toLowerCase()));
+      addEventListener('blur', () => keys.clear());
+
+      function moveFleet(dt, alive) {
+        const speed = fleetSpeed + (enemies.length - alive.length) * .035;
+        const deltaX = direction * speed * dt;
+        const touchesEdge = alive.some((enemy) => Math.abs(enemy.position.x + deltaX) > 14);
+        if (touchesEdge) {
+          direction *= -1;
+          fleetSpeed += .11;
+          alive.forEach((enemy) => { enemy.position.z += .66; });
+        } else {
+          alive.forEach((enemy) => { enemy.position.x += deltaX; });
+        }
+      }
+
+      // Для программиста: проверка использует весь отрезок перемещения снаряда,
+      // поэтому попадания не теряются при низком FPS и высокой скорости лазера.
+      function updateShots(list, dt, targetsPlayer) {
+        list.forEach((shot) => {
+          const previousZ = shot.position.z;
+          shot.position.z += shot.userData.velocityZ * dt;
+          if (targetsPlayer) {
+            const crossedShip = previousZ <= ship.position.z + .72 && shot.position.z >= ship.position.z - .72;
+            if (crossedShip && Math.abs(shot.position.x - ship.position.x) < 1.32) hitShip(shot);
+          } else {
+            for (const enemy of enemies) {
+              if (enemy.userData.dead) continue;
+              const crossedEnemy = previousZ >= enemy.position.z - .66 && shot.position.z <= enemy.position.z + .66;
+              if (crossedEnemy && Math.abs(shot.position.x - enemy.position.x) < .72) {
+                destroyEnemy(enemy, shot);
+                break;
+              }
+            }
+          }
+        });
+
+        for (let index = list.length - 1; index >= 0; index -= 1) {
+          const shot = list[index];
+          if (shot.userData.consumed || Math.abs(shot.position.z) > 32) {
+            scene.remove(shot);
+            list.splice(index, 1);
+          }
+        }
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        const dt = Math.min(clock.getDelta(), .033);
+        const time = clock.elapsedTime;
+
+        if (!ended) {
+          const movement = (keys.has('arrowright') || keys.has('d') ? 1 : 0) - (keys.has('arrowleft') || keys.has('a') ? 1 : 0);
+          ship.position.x = THREE.MathUtils.clamp(ship.position.x + movement * dt * 10.5, -14, 14);
+          ship.rotation.z += (-movement * .12 - ship.rotation.z) * Math.min(1, dt * 12);
+          if (keys.has(' ')) playerFire(time);
+
+          let alive = livingEnemies();
+          moveFleet(dt, alive);
+          alive.forEach((enemy, index) => {
+            enemy.rotation.y += dt * .85;
+            enemy.position.y = .1 + Math.sin(time * 3 + index * .35) * .08;
+          });
+
+          const enemyFireDelay = Math.max(.42, .92 - (enemies.length - alive.length) * .012);
+          if (alive.length && time - lastEnemyFire > enemyFireDelay) {
+            const shooters = frontLineInvaders();
+            const shooter = shooters[Math.floor(Math.random() * shooters.length)];
+            fire(enemyShots, shooter.position.x, shooter.position.z + .72, 13.2, enemyShotMaterial);
+            lastEnemyFire = time;
+          }
+
+          updateShots(playerShots, dt, false);
+          updateShots(enemyShots, dt, true);
+          alive = livingEnemies();
+
+          if (alive.some((enemy) => enemy.position.z > 8.1)) {
+            ended = true;
+            stateMessage = 'Perimeter breached — press R';
+            updateHud();
+          } else if (alive.length === 0) {
+            ended = true;
+            stateMessage = 'Outpost saved — press R for another wave';
+            updateHud();
+          }
+
+          if (ended) {
+            ship.visible = false;
+          } else {
+            invulnerability = Math.max(0, invulnerability - dt);
+            ship.visible = invulnerability <= 0 || Math.floor(invulnerability * 14) % 2 === 0;
+          }
+        }
+
+        for (let index = particles.length - 1; index >= 0; index -= 1) {
+          const particle = particles[index];
+          particle.position.addScaledVector(particle.userData.velocity, dt);
+          particle.userData.life -= dt;
+          particle.material.opacity = Math.max(0, particle.userData.life * 1.8);
+          particle.scale.setScalar(Math.max(.01, particle.userData.life));
+          if (particle.userData.life <= 0) {
+            scene.remove(particle);
+            particles.splice(index, 1);
+          }
+        }
+
+        stars.rotation.y = time * .005;
+        outpostLight.intensity = 27 + Math.sin(time * 3) * 2;
+        renderer.render(scene, camera);
+      }
+
+      addEventListener('resize', () => {
+        camera.aspect = innerWidth / innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth, innerHeight);
+      });
+
+      reset();
+      animate();
+    })();
+  </script>
+  <script src="fps-counter.js"></script>
+</body>
+</html>

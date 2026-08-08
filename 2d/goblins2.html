@@ -2,149 +2,426 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Хоббит против гоблинов</title>
-    <link rel="icon" href="/favicons/goblins-2.svg" type="image/svg+xml" />
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ночная стража Шира</title>
+  <link rel="icon" href="/favicons/goblins-2.svg" type="image/svg+xml">
   <style>
-    :root { color-scheme: dark; }
+    :root { color-scheme: dark; --moon: #ffe5a0; --moss: #a8cb68; }
     * { box-sizing: border-box; }
     body {
       margin: 0; min-height: 100vh; display: grid; place-items: center;
-      overflow: hidden; font-family: Georgia, "Times New Roman", serif;
-      color: #fff4ce; background: radial-gradient(circle at 50% 15%, #293b3d, #080d12 70%);
+      color: #fff2cf; font-family: Georgia, Cambria, serif;
+      background:
+        radial-gradient(circle at 50% 8%, #263e4b 0, transparent 38%),
+        linear-gradient(145deg, #091218, #050809 72%);
     }
-    .game-shell { position: relative; width: min(100vw, 1100px); padding: 18px; }
-    canvas {
-      display: block; width: 100%; height: auto; aspect-ratio: 16/9;
-      border: 2px solid #9e7b3f; border-radius: 20px; cursor: crosshair;
-      box-shadow: 0 24px 70px #000c, inset 0 0 40px #0008; touch-action: none;
-    }
-    .hint { margin: 10px 0 0; text-align: center; color: #b8b09b; font: 14px system-ui, sans-serif; }
-    kbd { padding: 2px 7px; border: 1px solid #71654f; border-radius: 5px; background: #171b1c; color: #f5d894; }
+    main { width: min(1100px, 100%); padding: clamp(12px, 2.5vw, 28px); }
+    header { display: flex; justify-content: space-between; align-items: end; gap: 18px; margin-bottom: 12px; }
+    h1 { margin: 0; font-size: clamp(27px, 5vw, 44px); letter-spacing: -.035em; }
+    h1 span { color: var(--moon); text-shadow: 0 0 24px #ffe5a055; }
+    .subtitle { color: #99a9a3; font: 700 12px Inter, system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; }
+    .frame { padding: 1px; border-radius: 23px; background: linear-gradient(135deg, #d9bc6e99, #ffffff10 50%, #668c7799); box-shadow: 0 32px 90px #000d, 0 0 45px #a4d7c112; }
+    canvas { display: block; width: 100%; height: auto; border-radius: 22px; cursor: crosshair; touch-action: none; }
+    .hint { display: flex; justify-content: space-between; gap: 16px; margin: 12px 3px 0; color: #99aaa4; font: 13px Inter, system-ui, sans-serif; }
+    kbd { padding: 2px 7px; border: 1px solid #52625c; border-bottom-width: 2px; border-radius: 6px; color: #ffe39a; background: #14201d; }
+    @media (max-width: 620px) { header, .hint { align-items: start; flex-direction: column; } }
   </style>
 </head>
 <body>
-  <main class="game-shell">
-    <canvas id="game" width="960" height="540" aria-label="Игра: хоббит защищает Шир от гоблинов"></canvas>
-    <p class="hint">Кликните по полю, чтобы бросить камень · <kbd>R</kbd> — начать заново</p>
+  <main>
+    <header>
+      <h1>НОЧНАЯ <span>СТРАЖА</span></h1>
+      <div class="subtitle">Шир должен продержаться до рассвета</div>
+    </header>
+    <div class="frame">
+      <canvas id="game" width="960" height="540" aria-label="Хоббит защищает Шир от гоблинов"></canvas>
+    </div>
+    <div class="hint">
+      <span>Кликните или коснитесь поля, чтобы бросить камень</span>
+      <span><kbd>R</kbd> начать заново · три прорыва означают поражение</span>
+    </div>
   </main>
-<script>
-const canvas = document.querySelector('#game');
-const ctx = canvas.getContext('2d');
-const W = canvas.width, H = canvas.height, ground = 445;
-const state = { goblins: [], stones: [], sparks: [], score: 0, lives: 3, ended: false, won: false, lastSpawn: 0, start: performance.now() };
-const hobbit = { x: 118, y: ground - 2, throwStart: -9999, target: null, released: true };
-const rand = (a, b) => a + Math.random() * (b - a);
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-function reset() {
-  Object.assign(state, { goblins: [], stones: [], sparks: [], score: 0, lives: 3, ended: false, won: false, lastSpawn: performance.now(), start: performance.now() });
-  hobbit.throwStart = -9999; hobbit.released = true;
-}
+  <script>
+    'use strict';
 
-function spawn(now) {
-  state.goblins.push({ x: W + 45, y: ground, speed: rand(25, 40) + state.score * 1.2, phase: rand(0, Math.PI * 2), scale: rand(.84, 1.08), hp: 1 });
-  state.lastSpawn = now;
-}
+    const canvas = document.querySelector('#game');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width;
+    const H = canvas.height;
+    const GROUND_Y = 445;
+    const GOAL = 15;
+    const GRAVITY = 440;
+    const THROW_DURATION = .65;
+    const RELEASE_AT = .43;
 
-function throwStone(x, y, now) {
-  if (state.ended) { reset(); return; }
-  if (now - hobbit.throwStart < 650) return;
-  hobbit.throwStart = now; hobbit.target = { x, y }; hobbit.released = false;
-}
+    const state = { goblins: [], stones: [], particles: [], score: 0, lives: 3, ended: false, won: false, spawnTimer: .7 };
+    const hobbit = { x: 118, y: GROUND_Y - 2, cooldown: 0, throw: null };
+    const pointer = { x: 680, y: 230, visible: false };
+    const stars = Array.from({ length: 65 }, (_, index) => ({ x: (index * 137.3) % W, y: 24 + (index * 53.7) % 260, size: index % 9 === 0 ? 2 : 1 }));
+    let shake = 0;
+    let lastTime = performance.now();
 
-canvas.addEventListener('pointerdown', e => {
-  const r = canvas.getBoundingClientRect();
-  throwStone((e.clientX-r.left)*W/r.width, (e.clientY-r.top)*H/r.height, performance.now());
-});
-addEventListener('keydown', e => { if (e.key.toLowerCase() === 'r') reset(); });
+    const random = (min, max) => min + Math.random() * (max - min);
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-function update(now, dt) {
-  if (state.ended) return;
-  if (now - state.lastSpawn > Math.max(620, 1450 - state.score * 45)) spawn(now);
-  const tp = (now - hobbit.throwStart) / 650;
-  if (!hobbit.released && tp >= .43) {
-    const sx = hobbit.x + 35, sy = hobbit.y - 83;
-    const dx = hobbit.target.x - sx, dy = hobbit.target.y - sy;
-    const flight = clamp(dx / 430, .55, 1.35);
-    state.stones.push({ x:sx, y:sy, vx:dx/flight, vy:(dy - 220*flight*flight)/flight, spin:0 });
-    hobbit.released = true;
-  }
-  state.stones.forEach(s => { s.vy += 440*dt; s.x += s.vx*dt; s.y += s.vy*dt; s.spin += dt*12; });
-  state.stones = state.stones.filter(s => s.x < W+30 && s.y < H+30);
-  for (const g of state.goblins) g.x -= g.speed * dt;
-  for (let i=state.goblins.length-1; i>=0; i--) {
-    const g=state.goblins[i];
-    if (g.x < 165) { state.goblins.splice(i,1); state.lives--; if (!state.lives) state.ended=true; continue; }
-    for (let j=state.stones.length-1; j>=0; j--) {
-      const s=state.stones[j];
-      if (Math.hypot(s.x-g.x, s.y-(g.y-54*g.scale)) < 35*g.scale) {
-        state.goblins.splice(i,1); state.stones.splice(j,1); state.score++;
-        for(let k=0;k<14;k++) state.sparks.push({x:s.x,y:s.y,vx:rand(-90,90),vy:rand(-120,20),life:rand(.3,.7)});
-        if(state.score>=15){state.won=true;state.ended=true;} break;
+    function reset() {
+      Object.assign(state, { goblins: [], stones: [], particles: [], score: 0, lives: 3, ended: false, won: false, spawnTimer: .7 });
+      hobbit.cooldown = 0;
+      hobbit.throw = null;
+      shake = 0;
+    }
+
+    function spawnGoblin() {
+      state.goblins.push({
+        x: W + 48,
+        y: GROUND_Y,
+        speed: random(39, 57) + state.score * 1.65,
+        phase: random(0, Math.PI * 2),
+        scale: random(.84, 1.1)
+      });
+    }
+
+    function beginThrow(targetX, targetY) {
+      if (state.ended) { reset(); return; }
+      if (hobbit.cooldown > 0 || hobbit.throw) return;
+      const startX = hobbit.x + 35;
+      hobbit.throw = {
+        elapsed: 0,
+        released: false,
+        // Для программиста: цель за спиной ограничена — отрицательное время полёта больше не создаёт «сломанный» бросок.
+        targetX: clamp(targetX, startX + 45, W - 12),
+        targetY: clamp(targetY, 62, GROUND_Y - 6)
+      };
+      hobbit.cooldown = THROW_DURATION;
+    }
+
+    function releaseStone(action) {
+      const startX = hobbit.x + 35;
+      const startY = hobbit.y - 83;
+      const dx = action.targetX - startX;
+      const dy = action.targetY - startY;
+      const flightTime = clamp(dx / 430, .55, 1.42);
+      state.stones.push({
+        x: startX, y: startY, previousX: startX, previousY: startY,
+        vx: dx / flightTime,
+        vy: (dy - GRAVITY * flightTime * flightTime / 2) / flightTime,
+        spin: 0
+      });
+    }
+
+    function segmentDistanceSquared(x1, y1, x2, y2, px, py) {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const lengthSquared = dx * dx + dy * dy;
+      const t = lengthSquared ? clamp(((px - x1) * dx + (py - y1) * dy) / lengthSquared, 0, 1) : 0;
+      const nearX = x1 + dx * t;
+      const nearY = y1 + dy * t;
+      return (px - nearX) ** 2 + (py - nearY) ** 2;
+    }
+
+    function stoneHitsGoblin(stone, goblin) {
+      const centerX = goblin.x;
+      const centerY = goblin.y - 55 * goblin.scale;
+      const radius = 32 * goblin.scale + 7;
+      return segmentDistanceSquared(stone.previousX, stone.previousY, stone.x, stone.y, centerX, centerY) <= radius * radius;
+    }
+
+    function burst(x, y, palette, amount = 18) {
+      for (let i = 0; i < amount; i += 1) {
+        const angle = random(0, Math.PI * 2);
+        const speed = random(30, 190);
+        state.particles.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 35, life: random(.3, .85), size: random(2, 6), color: palette[i % palette.length], glow: i % 4 === 0 });
       }
     }
-  }
-  state.sparks.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=180*dt;p.life-=dt;});
-  state.sparks=state.sparks.filter(p=>p.life>0);
-}
 
-function background(t) {
-  const sky=ctx.createLinearGradient(0,0,0,H); sky.addColorStop(0,'#071522');sky.addColorStop(.55,'#324854');sky.addColorStop(1,'#d49761');ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
-  const moon=ctx.createRadialGradient(745,100,5,745,100,80);moon.addColorStop(0,'#fffbd8');moon.addColorStop(.25,'#e8e5c3');moon.addColorStop(1,'#d7dfc000');ctx.fillStyle=moon;ctx.beginPath();ctx.arc(745,100,80,0,7);ctx.fill();
-  ctx.fillStyle='#182833'; ctx.beginPath();ctx.moveTo(0,320); for(let x=0;x<=W;x+=80)ctx.lineTo(x,210+Math.sin(x*.017)*55);ctx.lineTo(W,450);ctx.lineTo(0,450);ctx.fill();
-  ctx.fillStyle='#273a35';ctx.beginPath();ctx.moveTo(0,370);for(let x=0;x<=W;x+=45)ctx.lineTo(x,305+Math.sin(x*.026+1)*38);ctx.lineTo(W,460);ctx.lineTo(0,460);ctx.fill();
-  // Hobbit hill and warm windows
-  ctx.fillStyle='#355a35';ctx.beginPath();ctx.ellipse(80,420,190,105,0,0,7);ctx.fill();ctx.fillStyle='#253622';ctx.fillRect(0,398,180,65);
-  ctx.fillStyle='#6b4529';ctx.beginPath();ctx.arc(70,414,48,Math.PI,0);ctx.fillRect(22,414,96,48);ctx.fill();ctx.strokeStyle='#a77a47';ctx.lineWidth=6;ctx.stroke();
-  ctx.fillStyle='#f8c85d';ctx.beginPath();ctx.arc(70,422,25,0,7);ctx.fill();ctx.strokeStyle='#5b3d25';ctx.lineWidth=4;ctx.stroke();ctx.beginPath();ctx.moveTo(45,422);ctx.lineTo(95,422);ctx.moveTo(70,397);ctx.lineTo(70,447);ctx.stroke();
-  ctx.fillStyle='#18261d';ctx.fillRect(0,ground,W,H-ground);
-  for(let x=0;x<W;x+=18){ctx.strokeStyle=`rgba(93,130,62,${.25+.15*Math.sin(x)})`;ctx.beginPath();ctx.moveTo(x,ground+18);ctx.lineTo(x+Math.sin(t*.002+x)*5,ground-2-(x*17%11));ctx.stroke();}
-  ctx.fillStyle='#0005';ctx.fillRect(0,0,W,70);
-}
+    function updateGame(dt) {
+      hobbit.cooldown = Math.max(0, hobbit.cooldown - dt);
+      state.spawnTimer -= dt;
+      if (state.spawnTimer <= 0) {
+        spawnGoblin();
+        state.spawnTimer = Math.max(.58, 1.42 - state.score * .045) + random(-.1, .15);
+      }
 
-function limb(x,y,len,angle,width,color){ctx.strokeStyle=color;ctx.lineWidth=width;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+Math.sin(angle)*len,y+Math.cos(angle)*len);ctx.stroke();}
+      if (hobbit.throw) {
+        hobbit.throw.elapsed += dt;
+        const progress = hobbit.throw.elapsed / THROW_DURATION;
+        if (!hobbit.throw.released && progress >= RELEASE_AT) {
+          releaseStone(hobbit.throw);
+          hobbit.throw.released = true;
+        }
+        if (progress >= 1) hobbit.throw = null;
+      }
 
-function drawGoblin(g,t) {
-  const walk=Math.sin(t*.009*g.speed/30+g.phase), s=g.scale;
-  ctx.save();ctx.translate(g.x,g.y);ctx.scale(s,s);
-  ctx.fillStyle='#0005';ctx.beginPath();ctx.ellipse(0,3,29,8,0,0,7);ctx.fill();
-  limb(-12,-38,38,walk*.65,10,'#52672d');limb(12,-38,38,-walk*.65,10,'#52672d');
-  limb(-18,-63,32,-walk*.75,9,'#657b35');limb(18,-63,32,walk*.75,9,'#657b35');
-  ctx.fillStyle='#503b2d';ctx.beginPath();ctx.roundRect(-24,-76,48,45,12);ctx.fill();ctx.fillStyle='#283019';ctx.fillRect(-25,-44,50,8);
-  ctx.fillStyle='#718b3e';ctx.beginPath();ctx.ellipse(0,-88,25,27,0,0,7);ctx.fill();
-  ctx.beginPath();ctx.moveTo(-18,-94);ctx.lineTo(-42,-105);ctx.lineTo(-22,-81);ctx.moveTo(18,-94);ctx.lineTo(42,-105);ctx.lineTo(22,-81);ctx.fill();
-  ctx.fillStyle='#ffcf54';ctx.beginPath();ctx.ellipse(-9,-91,4,3,0,0,7);ctx.ellipse(9,-91,4,3,0,0,7);ctx.fill();
-  ctx.strokeStyle='#31231c';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,-80,11,.2,Math.PI-.2);ctx.stroke();
-  ctx.strokeStyle='#9d7c4d';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(25,-69);ctx.lineTo(39,-20);ctx.stroke();
-  ctx.restore();
-}
+      for (const stone of state.stones) {
+        stone.previousX = stone.x;
+        stone.previousY = stone.y;
+        stone.vy += GRAVITY * dt;
+        stone.x += stone.vx * dt;
+        stone.y += stone.vy * dt;
+        stone.spin += dt * 12;
+      }
+      for (const goblin of state.goblins) goblin.x -= goblin.speed * dt;
 
-function drawHobbit(now) {
-  const p=clamp((now-hobbit.throwStart)/650,0,1), active=p<1;
-  const wind=active ? (p<.43?p/.43:1-(p-.43)/.57) : 0;
-  ctx.save();ctx.translate(hobbit.x,hobbit.y);
-  ctx.fillStyle='#0006';ctx.beginPath();ctx.ellipse(0,4,36,9,0,0,7);ctx.fill();
-  limb(-11,-39,38,-.12,12,'#7f5a36');limb(11,-39,38,.12,12,'#7f5a36');
-  ctx.fillStyle='#4f6d37';ctx.beginPath();ctx.roundRect(-28,-88,56,53,15);ctx.fill();ctx.fillStyle='#8a6439';ctx.fillRect(-29,-48,58,8);
-  limb(-20,-75,34,-.8+wind*1.15,11,'#d8a66c');
-  const armAngle=.7-wind*2.2;limb(20,-76,39,armAngle,11,'#d8a66c');
-  ctx.fillStyle='#d9aa72';ctx.beginPath();ctx.arc(0,-106,24,0,7);ctx.fill();
-  ctx.fillStyle='#5a321e';ctx.beginPath();ctx.arc(0,-112,26,Math.PI,Math.PI*2);ctx.arc(-18,-108,10,0,7);ctx.fill();
-  ctx.fillStyle='#27331c';ctx.beginPath();ctx.moveTo(-29,-91);ctx.quadraticCurveTo(0,-126,31,-91);ctx.lineTo(23,-84);ctx.quadraticCurveTo(0,-103,-24,-83);ctx.fill();
-  ctx.fillStyle='#2b211b';ctx.beginPath();ctx.arc(-8,-106,2.5,0,7);ctx.arc(8,-106,2.5,0,7);ctx.fill();
-  if(active&&!hobbit.released){const hx=20+Math.sin(armAngle)*39,hy=-76+Math.cos(armAngle)*39;ctx.fillStyle='#77746c';ctx.beginPath();ctx.arc(hx,hy,7,0,7);ctx.fill();}
-  ctx.restore();
-}
+      for (let goblinIndex = state.goblins.length - 1; goblinIndex >= 0; goblinIndex -= 1) {
+        const goblin = state.goblins[goblinIndex];
+        if (goblin.x < 165) {
+          state.goblins.splice(goblinIndex, 1);
+          // Для программиста: жизни зажаты в диапазоне 0..3; отрицательное значение больше не ломает String.repeat в HUD.
+          state.lives = Math.max(0, state.lives - 1);
+          shake = 9;
+          burst(161, GROUND_Y - 32, ['#e27660', '#f0b068', '#594035'], 20);
+          if (state.lives === 0) {
+            state.ended = true;
+            break;
+          }
+          continue;
+        }
 
-function hud() {
-  ctx.fillStyle='#0b1016bb';ctx.beginPath();ctx.roundRect(22,18,300,42,12);ctx.fill();ctx.font='bold 20px Georgia';ctx.fillStyle='#f8dda0';ctx.fillText(`ПОБЕЖДЕНО: ${state.score} / 15`,40,46);
-  ctx.fillStyle='#0b1016bb';ctx.beginPath();ctx.roundRect(W-175,18,153,42,12);ctx.fill();ctx.fillStyle='#e8584d';ctx.fillText('♥ '.repeat(state.lives),W-153,46);
-  if(state.ended){ctx.fillStyle='#071015d9';ctx.fillRect(0,0,W,H);ctx.textAlign='center';ctx.fillStyle=state.won?'#f8dc82':'#e57b67';ctx.font='bold 58px Georgia';ctx.fillText(state.won?'ШИР СПАСЁН!':'ГОБЛИНЫ ПРОРВАЛИСЬ',W/2,H/2-20);ctx.font='22px system-ui';ctx.fillStyle='#eee4cb';ctx.fillText('Кликните или нажмите R, чтобы сыграть ещё раз',W/2,H/2+30);ctx.textAlign='left';}
-}
+        for (let stoneIndex = state.stones.length - 1; stoneIndex >= 0; stoneIndex -= 1) {
+          const stone = state.stones[stoneIndex];
+          if (!stoneHitsGoblin(stone, goblin)) continue;
+          state.goblins.splice(goblinIndex, 1);
+          state.stones.splice(stoneIndex, 1);
+          state.score = Math.min(GOAL, state.score + 1);
+          shake = 5;
+          burst(stone.x, stone.y, ['#b7d967', '#718c3d', '#e6cf83', '#49372c'], 23);
+          if (state.score >= GOAL) {
+            state.won = true;
+            state.ended = true;
+          }
+          break;
+        }
+        if (state.ended) break;
+      }
 
-let last=performance.now();
-function frame(now){const dt=Math.min((now-last)/1000,.034);last=now;update(now,dt);background(now);state.goblins.forEach(g=>drawGoblin(g,now));drawHobbit(now);state.stones.forEach(s=>{ctx.save();ctx.translate(s.x,s.y);ctx.rotate(s.spin);ctx.fillStyle='#77746c';ctx.beginPath();ctx.ellipse(0,0,8,6,.3,0,7);ctx.fill();ctx.restore();});state.sparks.forEach(p=>{ctx.globalAlpha=p.life*1.8;ctx.fillStyle='#b5d25a';ctx.fillRect(p.x,p.y,4,4);});ctx.globalAlpha=1;hud();requestAnimationFrame(frame);}requestAnimationFrame(frame);
-</script>
+      // Снаряды чистятся по всем границам, включая верхнюю и левую.
+      state.stones = state.stones.filter((stone) => stone.x > -50 && stone.x < W + 60 && stone.y > -180 && stone.y < H + 55);
+    }
+
+    function updateParticles(dt) {
+      for (const particle of state.particles) {
+        particle.x += particle.vx * dt;
+        particle.y += particle.vy * dt;
+        particle.vy += 210 * dt;
+        particle.life -= dt;
+      }
+      state.particles = state.particles.filter((particle) => particle.life > 0);
+      shake = Math.max(0, shake - 28 * dt);
+    }
+
+    function update(dt) {
+      if (!state.ended) updateGame(dt);
+      updateParticles(dt);
+    }
+
+    function drawBackground(time) {
+      const sky = ctx.createLinearGradient(0, 0, 0, H);
+      sky.addColorStop(0, '#061321'); sky.addColorStop(.55, '#253e4a'); sky.addColorStop(1, '#b57655');
+      ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+
+      for (const star of stars) {
+        ctx.globalAlpha = .35 + Math.sin(time * .003 + star.x) * .18;
+        ctx.fillStyle = '#edf6df'; ctx.fillRect(star.x, star.y, star.size, star.size);
+      }
+      ctx.globalAlpha = 1;
+      const moon = ctx.createRadialGradient(746, 101, 3, 746, 101, 86);
+      moon.addColorStop(0, '#fffde7'); moon.addColorStop(.25, '#e8e2bd'); moon.addColorStop(1, '#d9e5c000');
+      ctx.fillStyle = moon; ctx.beginPath(); ctx.arc(746, 101, 86, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#e9e4c8'; ctx.beginPath(); ctx.arc(746, 101, 35, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#c9c5aa55'; ctx.beginPath(); ctx.arc(734, 92, 7, 0, Math.PI * 2); ctx.arc(757, 111, 5, 0, Math.PI * 2); ctx.fill();
+
+      ctx.globalAlpha = .2;
+      for (let i = 0; i < 5; i += 1) {
+        const x = ((i * 247 + time * .004) % (W + 220)) - 110;
+        ctx.fillStyle = '#dce5dc'; ctx.beginPath(); ctx.ellipse(x, 132 + i % 2 * 72, 85, 12, 0, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      ctx.fillStyle = '#142630'; ctx.beginPath(); ctx.moveTo(0, 325);
+      for (let x = 0; x <= W; x += 78) ctx.lineTo(x, 212 + Math.sin(x * .017) * 55);
+      ctx.lineTo(W, GROUND_Y); ctx.lineTo(0, GROUND_Y); ctx.fill();
+      ctx.fillStyle = '#233a36'; ctx.beginPath(); ctx.moveTo(0, 382);
+      for (let x = 0; x <= W; x += 46) ctx.lineTo(x, 307 + Math.sin(x * .027 + 1) * 37);
+      ctx.lineTo(W, GROUND_Y); ctx.lineTo(0, GROUND_Y); ctx.fill();
+
+      // Дальние деревья дают глубину, оставаясь чистыми векторными силуэтами.
+      ctx.fillStyle = '#172c27';
+      for (let x = 205; x < W; x += 82) {
+        const height = 68 + (x * 13 % 38);
+        ctx.fillRect(x - 4, GROUND_Y - height, 8, height);
+        ctx.beginPath(); ctx.moveTo(x, GROUND_Y - height - 34); ctx.lineTo(x - 28, GROUND_Y - height + 20); ctx.lineTo(x + 28, GROUND_Y - height + 20); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(x, GROUND_Y - height - 8); ctx.lineTo(x - 34, GROUND_Y - height + 48); ctx.lineTo(x + 34, GROUND_Y - height + 48); ctx.fill();
+      }
+
+      ctx.fillStyle = '#355a38'; ctx.beginPath(); ctx.ellipse(82, 421, 194, 108, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#223522'; ctx.fillRect(0, 399, 181, 70);
+      ctx.fillStyle = '#69452c'; ctx.beginPath(); ctx.arc(70, 416, 49, Math.PI, 0); ctx.fillRect(21, 415, 98, 57); ctx.fill();
+      ctx.strokeStyle = '#aa7b47'; ctx.lineWidth = 6; ctx.stroke();
+      const windowGlow = ctx.createRadialGradient(70, 425, 3, 70, 425, 43);
+      windowGlow.addColorStop(0, '#fff4a4'); windowGlow.addColorStop(.42, '#f4bd4e'); windowGlow.addColorStop(1, '#f4bd4e00');
+      ctx.fillStyle = windowGlow; ctx.beginPath(); ctx.arc(70, 425, 43, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#f8c85d'; ctx.beginPath(); ctx.arc(70, 425, 25, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#5b3d25'; ctx.lineWidth = 4; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(45, 425); ctx.lineTo(95, 425); ctx.moveTo(70, 400); ctx.lineTo(70, 450); ctx.stroke();
+
+      const ground = ctx.createLinearGradient(0, GROUND_Y, 0, H);
+      ground.addColorStop(0, '#213a2a'); ground.addColorStop(1, '#0c1711');
+      ctx.fillStyle = ground; ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+      for (let x = 0; x < W; x += 17) {
+        ctx.strokeStyle = `rgba(102, 143, 68, ${.22 + .13 * Math.sin(x)})`;
+        ctx.beginPath(); ctx.moveTo(x, GROUND_Y + 18); ctx.lineTo(x + Math.sin(time * .002 + x) * 5, GROUND_Y - 2 - (x * 17 % 11)); ctx.stroke();
+      }
+
+      // Светлячки — дешёвый по вычислениям слой движения, оживляющий спокойные зоны кадра.
+      for (let i = 0; i < 14; i += 1) {
+        const x = 185 + (i * 59) % 720 + Math.sin(time * .001 + i) * 16;
+        const y = 290 + (i * 31) % 130 + Math.cos(time * .0014 + i) * 10;
+        ctx.globalAlpha = .25 + .35 * (Math.sin(time * .004 + i) + 1) / 2;
+        ctx.fillStyle = '#dfff75'; ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      const fog = ctx.createLinearGradient(0, 330, 0, 455);
+      fog.addColorStop(0, '#c8d8cc00'); fog.addColorStop(.55, '#c8d8cc13'); fog.addColorStop(1, '#c8d8cc00');
+      ctx.fillStyle = fog; ctx.fillRect(0, 330, W, 125);
+    }
+
+    function limb(x, y, length, angle, width, color) {
+      ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.sin(angle) * length, y + Math.cos(angle) * length); ctx.stroke();
+    }
+
+    function drawGoblin(goblin, time) {
+      const walk = Math.sin(time * .009 * goblin.speed / 40 + goblin.phase);
+      ctx.save(); ctx.translate(goblin.x, goblin.y); ctx.scale(goblin.scale, goblin.scale);
+      ctx.fillStyle = '#0007'; ctx.beginPath(); ctx.ellipse(0, 4, 30, 8, 0, 0, Math.PI * 2); ctx.fill();
+      limb(-12, -38, 38, walk * .65, 10, '#4d612c'); limb(12, -38, 38, -walk * .65, 10, '#4d612c');
+      limb(-18, -63, 32, -walk * .75, 9, '#657d37'); limb(18, -63, 32, walk * .75, 9, '#657d37');
+      ctx.fillStyle = '#4c392d'; ctx.beginPath(); ctx.roundRect(-24, -76, 48, 45, 12); ctx.fill();
+      ctx.fillStyle = '#273018'; ctx.fillRect(-25, -44, 50, 8);
+      ctx.fillStyle = '#718b3e'; ctx.beginPath(); ctx.ellipse(0, -88, 25, 27, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-18, -94); ctx.lineTo(-42, -105); ctx.lineTo(-22, -81); ctx.moveTo(18, -94); ctx.lineTo(42, -105); ctx.lineTo(22, -81); ctx.fill();
+      ctx.shadowColor = '#ffd65b'; ctx.shadowBlur = 7; ctx.fillStyle = '#ffcf54';
+      ctx.beginPath(); ctx.ellipse(-9, -91, 4, 3, 0, 0, Math.PI * 2); ctx.ellipse(9, -91, 4, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#31231c'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, -80, 11, .2, Math.PI - .2); ctx.stroke();
+      ctx.strokeStyle = '#9d7c4d'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(25, -69); ctx.lineTo(39, -20); ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawHobbit() {
+      const progress = hobbit.throw ? clamp(hobbit.throw.elapsed / THROW_DURATION, 0, 1) : 1;
+      const active = Boolean(hobbit.throw);
+      const wind = active ? (progress < RELEASE_AT ? progress / RELEASE_AT : Math.max(0, 1 - (progress - RELEASE_AT) / (1 - RELEASE_AT))) : 0;
+      ctx.save(); ctx.translate(hobbit.x, hobbit.y);
+      ctx.fillStyle = '#0007'; ctx.beginPath(); ctx.ellipse(0, 4, 36, 9, 0, 0, Math.PI * 2); ctx.fill();
+      limb(-11, -39, 38, -.12, 12, '#7f5a36'); limb(11, -39, 38, .12, 12, '#7f5a36');
+      ctx.fillStyle = '#4f6d37'; ctx.beginPath(); ctx.roundRect(-28, -88, 56, 53, 15); ctx.fill();
+      ctx.fillStyle = '#8a6439'; ctx.fillRect(-29, -48, 58, 8);
+      limb(-20, -75, 34, -.8 + wind * 1.15, 11, '#d8a66c');
+      const armAngle = .7 - wind * 2.2; limb(20, -76, 39, armAngle, 11, '#d8a66c');
+      ctx.fillStyle = '#d9aa72'; ctx.beginPath(); ctx.arc(0, -106, 24, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#5a321e'; ctx.beginPath(); ctx.arc(0, -112, 26, Math.PI, Math.PI * 2); ctx.arc(-18, -108, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#27331c'; ctx.beginPath(); ctx.moveTo(-29, -91); ctx.quadraticCurveTo(0, -126, 31, -91); ctx.lineTo(23, -84); ctx.quadraticCurveTo(0, -103, -24, -83); ctx.fill();
+      ctx.fillStyle = '#2b211b'; ctx.beginPath(); ctx.arc(-8, -106, 2.5, 0, Math.PI * 2); ctx.arc(8, -106, 2.5, 0, Math.PI * 2); ctx.fill();
+      if (active && !hobbit.throw.released) {
+        const handX = 20 + Math.sin(armAngle) * 39;
+        const handY = -76 + Math.cos(armAngle) * 39;
+        ctx.fillStyle = '#858279'; ctx.beginPath(); ctx.arc(handX, handY, 7, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function drawStone(stone) {
+      ctx.save(); ctx.translate(stone.x, stone.y); ctx.rotate(stone.spin);
+      ctx.shadowColor = '#e7e0b8'; ctx.shadowBlur = 7;
+      const gradient = ctx.createLinearGradient(-8, -6, 8, 6); gradient.addColorStop(0, '#aaa89d'); gradient.addColorStop(1, '#4e504b');
+      ctx.fillStyle = gradient; ctx.beginPath(); ctx.ellipse(0, 0, 8, 6, .3, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+
+    function drawAimGuide() {
+      if (!pointer.visible || state.ended || hobbit.cooldown > 0) return;
+      const startX = hobbit.x + 35;
+      const startY = hobbit.y - 83;
+      const targetX = clamp(pointer.x, startX + 45, W - 12);
+      const targetY = clamp(pointer.y, 62, GROUND_Y - 6);
+      const flightTime = clamp((targetX - startX) / 430, .55, 1.42);
+      const vx = (targetX - startX) / flightTime;
+      const vy = (targetY - startY - GRAVITY * flightTime * flightTime / 2) / flightTime;
+      ctx.fillStyle = '#f7e8a955';
+      // Для геймдизайнера: лишь начало дуги показано игроку — подсказка обучает, не превращая бросок в автоприцел.
+      for (let t = .12; t <= Math.min(.58, flightTime); t += .1) {
+        ctx.beginPath(); ctx.arc(startX + vx * t, startY + vy * t + GRAVITY * t * t / 2, 2.3, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.strokeStyle = '#fff0ad99'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(targetX, targetY, 11, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(targetX - 17, targetY); ctx.lineTo(targetX + 17, targetY); ctx.moveTo(targetX, targetY - 17); ctx.lineTo(targetX, targetY + 17); ctx.stroke();
+    }
+
+    function drawHud() {
+      ctx.fillStyle = '#08110fc7'; ctx.beginPath(); ctx.roundRect(20, 18, 274, 48, 13); ctx.fill();
+      ctx.font = '700 12px Inter, system-ui'; ctx.fillStyle = '#a8b8a5'; ctx.fillText('ГОБЛИНЫ ОСТАНОВЛЕНЫ', 39, 37);
+      ctx.font = '900 20px Inter, system-ui'; ctx.fillStyle = '#f8dda0'; ctx.fillText(`${state.score} / ${GOAL}`, 39, 59);
+
+      ctx.fillStyle = '#08110fc7'; ctx.beginPath(); ctx.roundRect(W - 190, 18, 170, 48, 13); ctx.fill();
+      ctx.font = '700 12px Inter, system-ui'; ctx.fillStyle = '#a8b8a5'; ctx.fillText('ЗАЩИТА ШИРА', W - 171, 37);
+      ctx.font = '900 20px Inter, system-ui'; ctx.fillStyle = '#e9665c'; ctx.fillText(state.lives > 0 ? '♥ '.repeat(state.lives).trim() : '—', W - 171, 59);
+
+      if (state.ended) {
+        ctx.fillStyle = '#06100ddd'; ctx.fillRect(0, 0, W, H);
+        ctx.textAlign = 'center'; ctx.font = '900 56px Georgia, serif';
+        ctx.fillStyle = state.won ? '#f8dc82' : '#e57b67';
+        ctx.fillText(state.won ? 'ШИР СПАСЁН!' : 'ГОБЛИНЫ ПРОРВАЛИСЬ', W / 2, H / 2 - 22);
+        ctx.font = '500 19px Inter, system-ui'; ctx.fillStyle = '#eee4cb';
+        ctx.fillText('Кликните или нажмите R, чтобы сыграть ещё раз', W / 2, H / 2 + 29);
+        ctx.textAlign = 'left';
+      }
+    }
+
+    function draw(now) {
+      ctx.save();
+      if (shake > 0) ctx.translate(random(-shake, shake), random(-shake, shake));
+      drawBackground(now);
+      state.goblins.forEach((goblin) => drawGoblin(goblin, now));
+      drawHobbit();
+      state.stones.forEach(drawStone);
+      for (const particle of state.particles) {
+        ctx.globalAlpha = clamp(particle.life * 1.8, 0, 1);
+        if (particle.glow) { ctx.shadowColor = particle.color; ctx.shadowBlur = 9; }
+        ctx.fillStyle = particle.color; ctx.fillRect(particle.x, particle.y, particle.size, particle.size); ctx.shadowBlur = 0;
+      }
+      ctx.globalAlpha = 1;
+      drawAimGuide();
+      drawHud();
+      ctx.restore();
+    }
+
+    function canvasPoint(event) {
+      const rect = canvas.getBoundingClientRect();
+      return { x: (event.clientX - rect.left) * W / rect.width, y: (event.clientY - rect.top) * H / rect.height };
+    }
+    canvas.addEventListener('pointermove', (event) => Object.assign(pointer, canvasPoint(event), { visible: true }));
+    canvas.addEventListener('pointerleave', () => { pointer.visible = false; });
+    canvas.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      const point = canvasPoint(event);
+      Object.assign(pointer, point, { visible: true });
+      beginThrow(point.x, point.y);
+    });
+    addEventListener('keydown', (event) => {
+      if (event.key.toLowerCase() === 'r' && !event.repeat) reset();
+    });
+
+    function frame(now) {
+      const dt = Math.min((now - lastTime) / 1000, .033);
+      lastTime = now;
+      update(dt);
+      draw(now);
+      requestAnimationFrame(frame);
+    }
+
+    reset();
+    requestAnimationFrame(frame);
+  </script>
 </body>
 </html>

@@ -3,171 +3,434 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Snake</title>
+    <title>Snake — Neon Garden</title>
     <link rel="icon" href="/favicons/snake.svg" type="image/svg+xml" />
     <style>
+      :root {
+        color-scheme: dark;
+        --ink: #eafff5;
+        --muted: #8daf9f;
+        --lime: #69f5a4;
+        --panel: rgba(9, 27, 27, 0.82);
+      }
+
+      * { box-sizing: border-box; }
+
       body {
-        background: #111;
-        color: #fff;
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        overflow-x: hidden;
+        background:
+          radial-gradient(circle at 18% 10%, rgba(37, 171, 124, 0.2), transparent 34rem),
+          radial-gradient(circle at 82% 90%, rgba(63, 84, 194, 0.2), transparent 30rem),
+          #061111;
+        color: var(--ink);
+        font-family: Inter, ui-rounded, "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: min(92vw, 510px);
+        padding: 30px 0;
         text-align: center;
-        font-family: sans-serif;
+      }
+
+      .eyebrow {
+        margin: 0 0 5px;
+        color: var(--lime);
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2.2rem, 10vw, 4.2rem);
+        line-height: 0.95;
+        letter-spacing: -0.07em;
+      }
+
+      .subtitle {
+        margin: 12px 0 18px;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .game-shell {
+        position: relative;
+        padding: 10px;
+        border: 1px solid rgba(129, 255, 190, 0.24);
+        border-radius: 24px;
+        background: var(--panel);
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.48), inset 0 1px rgba(255, 255, 255, 0.06);
+        backdrop-filter: blur(14px);
       }
 
       canvas {
-        background: #000;
-        border: 2px solid #3f3;
-        margin: auto;
         display: block;
+        width: 100%;
+        height: auto;
+        border-radius: 16px;
+        background: #071716;
+        box-shadow: inset 0 0 45px rgba(0, 0, 0, 0.72);
         touch-action: none;
       }
+
+      .hud {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 8px 4px;
+        color: var(--muted);
+        font-size: 0.75rem;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .hud strong { color: var(--ink); font-size: 1rem; }
+
+      button {
+        margin-top: 16px;
+        padding: 10px 18px;
+        border: 1px solid rgba(105, 245, 164, 0.45);
+        border-radius: 999px;
+        background: rgba(105, 245, 164, 0.1);
+        color: var(--ink);
+        font: inherit;
+        font-weight: 750;
+        cursor: pointer;
+        transition: transform 160ms ease, background 160ms ease;
+      }
+
+      button:hover { background: rgba(105, 245, 164, 0.2); transform: translateY(-1px); }
+      button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
     </style>
   </head>
   <body>
-    <h1>Snake</h1>
-    <p>Arrow keys to move. Eat food to grow.</p>
-    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <main>
+      <p class="eyebrow">Neon garden</p>
+      <h1>Snake</h1>
+      <p class="subtitle">Arrow keys / WASD or swipe · Space pauses</p>
+      <section class="game-shell" aria-label="Snake game">
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+        <div class="hud" aria-live="polite">
+          <span>Score <strong id="scoreValue">0</strong></span>
+          <span>Best <strong id="bestValue">0</strong></span>
+        </div>
+      </section>
+      <button id="restartButton" type="button">New run</button>
+    </main>
 
     <script>
       const canvas = document.getElementById('gameCanvas');
       const ctx = canvas.getContext('2d');
+      const scoreValue = document.getElementById('scoreValue');
+      const bestValue = document.getElementById('bestValue');
+      const restartButton = document.getElementById('restartButton');
 
       const GRID_SIZE = 20;
-      const TILE_COUNT = 20;
-
-      let snake = [{ x: 10, y: 10 }];
-      let direction = { x: 1, y: 0 };
-      let food = { x: 15, y: 15 };
-      let score = 0;
-      let isAlive = true;
+      const TILE_COUNT = canvas.width / GRID_SIZE;
+      const TICK_MS = 115;
       const SWIPE_THRESHOLD = 24;
 
-      let touchStartX = null;
-      let touchStartY = null;
+      let snake;
+      let direction;
+      let queuedDirection;
+      let food;
+      let score;
+      let bestScore = Number(localStorage.getItem('snakeBest') || 0);
+      let state;
+      let particles = [];
+      let touchStart = null;
+
+      bestValue.textContent = String(bestScore);
+
+      function resetGame() {
+        snake = [
+          { x: 10, y: 10 },
+          { x: 9, y: 10 },
+          { x: 8, y: 10 },
+        ];
+        direction = { x: 1, y: 0 };
+        queuedDirection = direction;
+        score = 0;
+        state = 'playing';
+        particles = [];
+        placeFood();
+        updateHud();
+        draw();
+      }
+
+      function updateHud() {
+        scoreValue.textContent = String(score);
+        bestValue.textContent = String(bestScore);
+      }
 
       function setDirection(nextDirection) {
+        if (state === 'over') {
+          resetGame();
+          return;
+        }
+
+        // Для программиста: сравниваем с направлением последнего игрового тика,
+        // а не с уже поставленным в очередь. Это закрывает разворот на 180° двумя быстрыми нажатиями.
         const isOpposite =
           direction.x === -nextDirection.x && direction.y === -nextDirection.y;
-
-        if (!isOpposite) direction = nextDirection;
+        if (!isOpposite) queuedDirection = nextDirection;
       }
 
       function placeFood() {
-        food = {
-          x: Math.floor(Math.random() * TILE_COUNT),
-          y: Math.floor(Math.random() * TILE_COUNT),
-        };
+        const occupied = new Set(snake.map(({ x, y }) => `${x},${y}`));
+        const freeTiles = [];
+        for (let y = 0; y < TILE_COUNT; y += 1) {
+          for (let x = 0; x < TILE_COUNT; x += 1) {
+            if (!occupied.has(`${x},${y}`)) freeTiles.push({ x, y });
+          }
+        }
+
+        // Для геймдизайнера: еда выбирается только из свободных клеток — ни одного «невидимого» яблока под телом.
+        food = freeTiles.length
+          ? freeTiles[Math.floor(Math.random() * freeTiles.length)]
+          : null;
+      }
+
+      function spawnFoodParticles(x, y) {
+        for (let i = 0; i < 12; i += 1) {
+          const angle = (Math.PI * 2 * i) / 12 + Math.random() * 0.2;
+          particles.push({
+            x: (x + 0.5) * GRID_SIZE,
+            y: (y + 0.5) * GRID_SIZE,
+            vx: Math.cos(angle) * (0.5 + Math.random() * 1.3),
+            vy: Math.sin(angle) * (0.5 + Math.random() * 1.3),
+            life: 1,
+          });
+        }
       }
 
       function update() {
-        if (!isAlive) return;
+        particles.forEach((particle) => {
+          particle.x += particle.vx;
+          particle.y += particle.vy;
+          particle.life -= 0.06;
+        });
+        particles = particles.filter(({ life }) => life > 0);
 
+        if (state !== 'playing') {
+          draw();
+          return;
+        }
+
+        direction = queuedDirection;
         const nextHead = {
           x: snake[0].x + direction.x,
           y: snake[0].y + direction.y,
         };
-
+        const ateFood = food && nextHead.x === food.x && nextHead.y === food.y;
+        const bodyToCheck = ateFood ? snake : snake.slice(0, -1);
         const hitWall =
-          nextHead.x < 0 ||
-          nextHead.x >= TILE_COUNT ||
-          nextHead.y < 0 ||
-          nextHead.y >= TILE_COUNT;
-
-        const hitSelf = snake.some(
+          nextHead.x < 0 || nextHead.x >= TILE_COUNT ||
+          nextHead.y < 0 || nextHead.y >= TILE_COUNT;
+        const hitSelf = bodyToCheck.some(
           (segment) => segment.x === nextHead.x && segment.y === nextHead.y,
         );
 
+        // Для программиста: хвост исключён из проверки, если он сейчас уйдёт; шаг в его клетку легален.
         if (hitWall || hitSelf) {
-          isAlive = false;
+          state = 'over';
           draw();
           return;
         }
 
         snake.unshift(nextHead);
-
-        if (nextHead.x === food.x && nextHead.y === food.y) {
+        if (ateFood) {
           score += 1;
+          bestScore = Math.max(bestScore, score);
+          localStorage.setItem('snakeBest', String(bestScore));
+          spawnFoodParticles(food.x, food.y);
           placeFood();
+          if (!food) state = 'won';
+          updateHud();
         } else {
           snake.pop();
         }
-
         draw();
       }
 
-      function draw() {
-        ctx.fillStyle = '#000';
+      function roundedRect(x, y, width, height, radius) {
+        ctx.beginPath();
+        ctx.roundRect(x, y, width, height, radius);
+      }
+
+      function drawBoard() {
+        const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+        gradient.addColorStop(0, '#0b2420');
+        gradient.addColorStop(1, '#071315');
+        ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        ctx.fillStyle = 'red';
-        ctx.fillRect(food.x * GRID_SIZE, food.y * GRID_SIZE, GRID_SIZE - 1, GRID_SIZE - 1);
+        ctx.strokeStyle = 'rgba(122, 226, 174, 0.055)';
+        ctx.lineWidth = 1;
+        for (let p = GRID_SIZE; p < canvas.width; p += GRID_SIZE) {
+          ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, canvas.height); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(canvas.width, p); ctx.stroke();
+        }
 
-        ctx.fillStyle = '#0f0';
-        snake.forEach((segment) => {
-          ctx.fillRect(segment.x * GRID_SIZE, segment.y * GRID_SIZE, GRID_SIZE - 1, GRID_SIZE - 1);
-        });
+        const vignette = ctx.createRadialGradient(200, 180, 80, 200, 200, 300);
+        vignette.addColorStop(0, 'rgba(0,0,0,0)');
+        vignette.addColorStop(1, 'rgba(0,0,0,0.52)');
+        ctx.fillStyle = vignette;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
 
-        ctx.fillStyle = '#fff';
-        ctx.font = '14px sans-serif';
-        ctx.fillText(`Score: ${score}`, 10, 16);
+      function drawFood() {
+        if (!food) return;
+        const cx = (food.x + 0.5) * GRID_SIZE;
+        const cy = (food.y + 0.55) * GRID_SIZE;
+        ctx.save();
+        ctx.shadowColor = '#ff5477';
+        ctx.shadowBlur = 18;
+        const berry = ctx.createRadialGradient(cx - 3, cy - 4, 1, cx, cy, 10);
+        berry.addColorStop(0, '#ffe1e8');
+        berry.addColorStop(0.25, '#ff6c89');
+        berry.addColorStop(1, '#a91343');
+        ctx.fillStyle = berry;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#7dffac';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 7);
+        ctx.quadraticCurveTo(cx + 3, cy - 13, cx + 7, cy - 11);
+        ctx.stroke();
+        ctx.restore();
+      }
 
-        if (!isAlive) {
-          ctx.font = '24px sans-serif';
-          ctx.fillText('Game Over', 140, 200);
+      function drawSnake() {
+        for (let index = snake.length - 1; index >= 0; index -= 1) {
+          const segment = snake[index];
+          const inset = index === 0 ? 2 : 3;
+          const x = segment.x * GRID_SIZE + inset;
+          const y = segment.y * GRID_SIZE + inset;
+          const size = GRID_SIZE - inset * 2;
+          const t = 1 - index / Math.max(snake.length, 2);
+          ctx.save();
+          ctx.shadowColor = `rgba(83, 255, 157, ${0.18 + t * 0.35})`;
+          ctx.shadowBlur = index === 0 ? 16 : 7;
+          const skin = ctx.createLinearGradient(x, y, x + size, y + size);
+          skin.addColorStop(0, index === 0 ? '#b8ffd2' : '#66eda0');
+          skin.addColorStop(1, index === 0 ? '#45dc88' : '#159e69');
+          ctx.fillStyle = skin;
+          roundedRect(x, y, size, size, index === 0 ? 7 : 5);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,0.18)';
+          roundedRect(x + 3, y + 2, size - 6, 3, 2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        const head = snake[0];
+        const centerX = (head.x + 0.5) * GRID_SIZE;
+        const centerY = (head.y + 0.5) * GRID_SIZE;
+        const sideX = direction.y * 4;
+        const sideY = -direction.x * 4;
+        ctx.fillStyle = '#082017';
+        for (const side of [-1, 1]) {
+          ctx.beginPath();
+          ctx.arc(centerX + direction.x * 4 + sideX * side, centerY + direction.y * 4 + sideY * side, 1.7, 0, Math.PI * 2);
+          ctx.fill();
         }
       }
 
-      document.addEventListener('keydown', (event) => {
-        if (event.key === 'ArrowUp') setDirection({ x: 0, y: -1 });
-        if (event.key === 'ArrowDown') setDirection({ x: 0, y: 1 });
-        if (event.key === 'ArrowLeft') setDirection({ x: -1, y: 0 });
-        if (event.key === 'ArrowRight') setDirection({ x: 1, y: 0 });
+      function drawOverlay() {
+        if (state === 'playing') return;
+        ctx.fillStyle = 'rgba(3, 12, 12, 0.72)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#eafff5';
+        ctx.font = '800 34px ui-rounded, sans-serif';
+        const heading = state === 'paused' ? 'Paused' : state === 'won' ? 'Garden complete!' : 'Run over';
+        ctx.fillText(heading, canvas.width / 2, canvas.height / 2 - 8);
+        ctx.fillStyle = '#91b9a6';
+        ctx.font = '15px ui-rounded, sans-serif';
+        ctx.fillText(state === 'paused' ? 'Press Space to continue' : 'Press Enter or swipe to restart', canvas.width / 2, canvas.height / 2 + 25);
+        ctx.textAlign = 'start';
+      }
+
+      function draw() {
+        drawBoard();
+        drawFood();
+        drawSnake();
+        particles.forEach((particle) => {
+          ctx.globalAlpha = particle.life;
+          ctx.fillStyle = '#ff7f99';
+          ctx.beginPath();
+          ctx.arc(particle.x, particle.y, 2.4 * particle.life, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+        drawOverlay();
+      }
+
+      function togglePause() {
+        if (state === 'playing') state = 'paused';
+        else if (state === 'paused') state = 'playing';
+        draw();
+      }
+
+      const keyDirections = {
+        ArrowUp: { x: 0, y: -1 }, KeyW: { x: 0, y: -1 },
+        ArrowDown: { x: 0, y: 1 }, KeyS: { x: 0, y: 1 },
+        ArrowLeft: { x: -1, y: 0 }, KeyA: { x: -1, y: 0 },
+        ArrowRight: { x: 1, y: 0 }, KeyD: { x: 1, y: 0 },
+      };
+
+      window.addEventListener('keydown', (event) => {
+        const nextDirection = keyDirections[event.code];
+        if (nextDirection) {
+          event.preventDefault();
+          setDirection(nextDirection);
+        }
+        if (event.code === 'Space') {
+          event.preventDefault();
+          togglePause();
+        }
+        if (event.code === 'Enter' && (state === 'over' || state === 'won')) resetGame();
       });
 
-      canvas.addEventListener(
-        'touchstart',
-        (event) => {
-          const touch = event.changedTouches[0];
-          touchStartX = touch.clientX;
-          touchStartY = touch.clientY;
-        },
-        { passive: true },
-      );
-
-      canvas.addEventListener(
-        'touchend',
-        (event) => {
-          if (touchStartX === null || touchStartY === null) return;
-
-          const touch = event.changedTouches[0];
-          const dx = touch.clientX - touchStartX;
-          const dy = touch.clientY - touchStartY;
-
-          if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) {
-            touchStartX = null;
-            touchStartY = null;
-            return;
-          }
-
-          if (Math.abs(dx) > Math.abs(dy)) {
-            if (dx > 0) setDirection({ x: 1, y: 0 });
-            else setDirection({ x: -1, y: 0 });
-          } else {
-            if (dy > 0) setDirection({ x: 0, y: 1 });
-            else setDirection({ x: 0, y: -1 });
-          }
-
-          touchStartX = null;
-          touchStartY = null;
-        },
-        { passive: true },
-      );
-
-      canvas.addEventListener('touchmove', (event) => {
-        event.preventDefault();
+      canvas.addEventListener('pointerdown', (event) => {
+        touchStart = { x: event.clientX, y: event.clientY };
+        canvas.setPointerCapture?.(event.pointerId);
       });
 
-      draw();
-      setInterval(update, 120);
+      canvas.addEventListener('pointerup', (event) => {
+        if (!touchStart) return;
+        if (state === 'over' || state === 'won') {
+          resetGame();
+          touchStart = null;
+          return;
+        }
+        const dx = event.clientX - touchStart.x;
+        const dy = event.clientY - touchStart.y;
+        touchStart = null;
+        if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_THRESHOLD) return;
+        setDirection(Math.abs(dx) > Math.abs(dy)
+          ? { x: Math.sign(dx), y: 0 }
+          : { x: 0, y: Math.sign(dy) });
+      });
+
+      canvas.addEventListener('pointercancel', () => { touchStart = null; });
+      restartButton.addEventListener('click', resetGame);
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden && state === 'playing') togglePause();
+      });
+
+      resetGame();
+      setInterval(update, TICK_MS);
     </script>
   </body>
 </html>
