@@ -378,6 +378,7 @@
 
       function shoot() {
         if (ended || shootCooldown > 0) return;
+        window.gameAudio?.play('shoot');
         const mesh = new THREE.Mesh(bulletGeometry, bulletMaterial);
         mesh.position.set(player.position.x + facing * .7, player.position.y + .05, 0);
         scene.add(mesh);

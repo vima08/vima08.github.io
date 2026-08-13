@@ -130,6 +130,7 @@
         age: 0,
         trail: []
       };
+      window.gameAudio?.play('shoot');
       shake = 5;
       for (let i = 0; i < 12; i += 1) {
         smoke.push({ x: muzzle.x, y: muzzle.y, vx: random(10, 80), vy: random(-70, 5), size: random(6, 15), life: random(.35, .8) });
@@ -143,6 +144,7 @@
     }
 
     function detonate(x, y, hitTarget = null) {
+      window.gameAudio?.play('explosion');
       projectile = null;
       explosion = { x, y, age: 0, duration: .48 };
       shake = hitTarget ? 13 : 8;
