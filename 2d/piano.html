@@ -121,6 +121,18 @@
         flex-wrap: wrap;
         gap: 8px;
       }
+      .mode {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 7px 9px;
+        color: #aaa2ad;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .mode input {
+        accent-color: var(--gold);
+      }
       .action {
         padding: 9px 13px;
         border: 1px solid #ffffff16;
@@ -325,6 +337,12 @@
         border-color: var(--track);
         filter: brightness(1.15);
       }
+      .note.playing {
+        border-color: var(--track);
+        background: color-mix(in srgb, var(--track) 38%, #121016);
+        box-shadow: 0 0 18px color-mix(in srgb, var(--track) 45%, transparent);
+        transform: translateY(-2px);
+      }
       .note.pause strong {
         color: #aaa2ad;
         font-size: 14px;
@@ -391,10 +409,25 @@
       <section class="studio" aria-label="Виртуальное пианино">
         <div class="bar">
           <div class="hands" aria-label="Выбор партии">
-            <button class="hand active" data-hand="right">Правая рука</button>
             <button class="hand" data-hand="left">Левая рука</button>
+            <button class="hand active" data-hand="right">Правая рука</button>
           </div>
           <div class="actions">
+            <label
+              class="mode"
+              title="В простом режиме длительность каждой ноты — 400 мс"
+            >
+              <input id="simple-mode" type="checkbox" checked />
+              Простой режим
+            </label>
+            <button class="action" id="import">⇧ Импорт .md</button>
+            <button class="action" id="export">⇩ Экспорт .md</button>
+            <input
+              id="import-file"
+              type="file"
+              accept=".md,text/markdown"
+              hidden
+            />
             <button class="action midi" id="midi" aria-live="polite">
               ◉ Подключить MIDI
             </button>
@@ -416,19 +449,19 @@
           </p>
         </div>
         <div class="score">
-          <div class="track" style="--track: var(--red)">
-            <div class="trackhead">
-              <span class="title"><i class="dot"></i>Правая рука</span>
-              <button class="clear" data-clear="right">Очистить</button>
-            </div>
-            <div class="notes" id="right-notes"></div>
-          </div>
           <div class="track" style="--track: var(--blue)">
             <div class="trackhead">
               <span class="title"><i class="dot"></i>Левая рука</span>
               <button class="clear" data-clear="left">Очистить</button>
             </div>
             <div class="notes" id="left-notes"></div>
+          </div>
+          <div class="track" style="--track: var(--red)">
+            <div class="trackhead">
+              <span class="title"><i class="dot"></i>Правая рука</span>
+              <button class="clear" data-clear="right">Очистить</button>
+            </div>
+            <div class="notes" id="right-notes"></div>
           </div>
         </div>
       </section>
@@ -454,12 +487,14 @@
       const intervals = [150, 250, 400, 600, 800, 1200];
       const board = document.querySelector("#keyboard");
       const octaveBar = document.querySelector("#octaves");
+      const simpleMode = document.querySelector("#simple-mode");
 
       let hand = "right";
       let octave = 4;
       let timers = [];
       let midiAccess;
       const midiNotes = new Map();
+      const activeRecordings = new Map();
 
       function buildKeyboard() {
         board.innerHTML = "";
@@ -486,9 +521,10 @@
             }
             key.onpointerdown = (event) => {
               event.preventDefault();
-              sound(note, key, true);
+              startNote(note, key, `pointer-${event.pointerId}`);
             };
-            key.onpointerup = key.onpointerleave = () => lift(note, key);
+            key.onpointerup = key.onpointercancel = key.onpointerleave =
+              (event) => finishNote(note, key, `pointer-${event.pointerId}`);
           });
 
           board.append(octaveElement);
@@ -511,13 +547,36 @@
       });
       buildKeyboard();
 
-      function sound(note, key, record = false) {
+      function sound(note, key) {
         if (key) key.classList.add("active");
         pianoAudio.press(note);
-        if (record) {
-          score[hand].push({ note, interval: 400 });
-          render(hand);
+      }
+      function startNote(note, key, recordingId) {
+        if (activeRecordings.has(recordingId)) return;
+        const part = hand;
+        const item = { note, interval: 400 };
+        score[part].push(item);
+        activeRecordings.set(recordingId, {
+          item,
+          part,
+          startedAt: performance.now(),
+        });
+        sound(note, key);
+        render(part);
+      }
+      function finishNote(note, key, recordingId) {
+        const recording = activeRecordings.get(recordingId);
+        if (recording) {
+          if (!simpleMode.checked) {
+            recording.item.interval = Math.max(
+              1,
+              Math.round(performance.now() - recording.startedAt),
+            );
+            render(recording.part);
+          }
+          activeRecordings.delete(recordingId);
         }
+        lift(note, key);
       }
       function lift(note, key) {
         if (key) key.classList.remove("active");
@@ -537,6 +596,7 @@
         score[part].forEach((item, index) => {
           const tile = document.createElement("div");
           tile.className = "note" + (item.pause ? " pause" : "");
+          tile.dataset.index = index;
           const label = item.pause ? "Пауза" : item.note.replace("#", "♯");
           tile.innerHTML =
             "<strong>" +
@@ -544,7 +604,8 @@
             '</strong><select aria-label="Длительность ' +
             label +
             '">' +
-            intervals
+            [...new Set([...intervals, item.interval])]
+              .sort((a, b) => a - b)
               .map(
                 (ms) =>
                   '<option value="' +
@@ -573,10 +634,14 @@
       function stop() {
         timers.forEach(clearTimeout);
         timers = [];
+        activeRecordings.clear();
         pianoAudio.stopAll();
         document
           .querySelectorAll(".key.active")
           .forEach((k) => k.classList.remove("active"));
+        document
+          .querySelectorAll(".note.playing")
+          .forEach((tile) => tile.classList.remove("playing"));
       }
 
       function midiNoteName(number) {
@@ -606,16 +671,13 @@
         if (messageType === 0x90 && velocity > 0) {
           if (midiNotes.has(number)) return;
           midiNotes.set(number, note);
-          if (key) key.classList.add("active");
-          pianoAudio.press(note, undefined, velocity / 127);
-          score[hand].push({ note, interval: 400 });
-          render(hand);
+          startNote(note, key, `midi-${number}`);
           return;
         }
 
         if (messageType === 0x80 || (messageType === 0x90 && velocity === 0)) {
           midiNotes.delete(number);
-          lift(note, key);
+          finishNote(note, key, `midi-${number}`);
         }
       }
 
@@ -654,7 +716,7 @@
         stop();
         ["left", "right"].forEach((part) => {
           let at = 0;
-          score[part].forEach((item) => {
+          score[part].forEach((item, index) => {
             if (!item.pause) {
               timers.push(
                 setTimeout(() => {
@@ -662,9 +724,22 @@
                     '[data-note="' + item.note + '"]',
                   );
                   sound(item.note, key);
-                  setTimeout(
-                    () => lift(item.note, key),
-                    Math.min(item.interval * 0.82, 520),
+                  const tile = document.querySelector(
+                    `#${part}-notes .note[data-index="${index}"]`,
+                  );
+                  if (tile) {
+                    tile.classList.add("playing");
+                    tile.scrollIntoView({
+                      behavior: "smooth",
+                      block: "nearest",
+                      inline: "center",
+                    });
+                  }
+                  timers.push(
+                    setTimeout(() => {
+                      lift(item.note, key);
+                      if (tile) tile.classList.remove("playing");
+                    }, Math.min(item.interval * 0.82, 520)),
                   );
                 }, at),
               );
@@ -692,6 +767,66 @@
       document.querySelector("#play").onclick = play;
       document.querySelector("#stop").onclick = stop;
       document.querySelector("#midi").onclick = enableMidi;
+      function exportScore() {
+        const lines = [
+          "# Партии Ivory Nocturne",
+          "",
+          "| Партия | Нота | Длительность, мс |",
+          "| --- | --- | ---: |",
+        ];
+        [
+          ["Левая", "left"],
+          ["Правая", "right"],
+        ].forEach(([label, part]) => {
+          if (!score[part].length) lines.push(`| ${label} | — | — |`);
+          score[part].forEach((item) => {
+            const note = item.pause ? "Пауза" : item.note;
+            lines.push(`| ${label} | ${note} | ${item.interval} |`);
+          });
+        });
+        const blob = new Blob([lines.join("\n") + "\n"], {
+          type: "text/markdown;charset=utf-8",
+        });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "ivory-nocturne-parties.md";
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 0);
+      }
+      async function importScore(file) {
+        const imported = { left: [], right: [] };
+        const rows = (await file.text())
+          .split(/\r?\n/)
+          .filter((line) => /^\|.*\|$/.test(line));
+        rows.forEach((row) => {
+          const cells = row.slice(1, -1).split("|").map((cell) => cell.trim());
+          const part =
+            cells[0] === "Левая"
+              ? "left"
+              : cells[0] === "Правая"
+                ? "right"
+                : null;
+          const interval = Number(cells[2]);
+          if (!part || !Number.isFinite(interval) || interval <= 0) return;
+          if (cells[1] === "Пауза") {
+            imported[part].push({ pause: true, interval });
+          } else if (/^[A-G](?:#)?[0-8]$/.test(cells[1])) {
+            imported[part].push({ note: cells[1], interval });
+          }
+        });
+        score.left = imported.left;
+        score.right = imported.right;
+        render("left");
+        render("right");
+      }
+      document.querySelector("#export").onclick = exportScore;
+      document.querySelector("#import").onclick = () =>
+        document.querySelector("#import-file").click();
+      document.querySelector("#import-file").onchange = async (event) => {
+        const [file] = event.target.files;
+        if (file) await importScore(file);
+        event.target.value = "";
+      };
       const held = new Set();
       onkeydown = (e) => {
         if (e.code === "Space") {
@@ -705,12 +840,12 @@
         const key = keyBindings.get(e.key.toLowerCase());
         if (!key || held.has(e.code)) return;
         held.add(e.code);
-        sound(key.dataset.note, key, true);
+        startNote(key.dataset.note, key, `keyboard-${e.code}`);
       };
       onkeyup = (e) => {
         held.delete(e.code);
         const key = keyBindings.get(e.key.toLowerCase());
-        if (key) lift(key.dataset.note, key);
+        if (key) finishNote(key.dataset.note, key, `keyboard-${e.code}`);
       };
       render("right");
       render("left");
