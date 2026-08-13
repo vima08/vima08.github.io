@@ -118,6 +118,7 @@
       }
       .actions {
         display: flex;
+        flex-wrap: wrap;
         gap: 8px;
       }
       .action {
@@ -131,6 +132,11 @@
         color: #211813 !important;
         background: var(--gold) !important;
         font-weight: 800;
+      }
+      .midi.connected {
+        border-color: #78b88f66;
+        color: #a9d8b9;
+        background: #3b795833;
       }
       .stage {
         padding: 40px 18px 25px;
@@ -186,6 +192,20 @@
         user-select: none;
         touch-action: none;
       }
+      .piano-octave {
+        display: flex;
+        position: relative;
+        flex: 1;
+        min-width: 0;
+        height: 100%;
+        outline: 2px solid transparent;
+        outline-offset: -2px;
+      }
+      .piano-octave.active {
+        z-index: 3;
+        outline-color: var(--gold);
+        box-shadow: inset 0 0 16px #e6b87533;
+      }
       .key {
         position: relative;
         padding: 0;
@@ -208,9 +228,9 @@
       }
       .black {
         z-index: 2;
-        width: 6.3%;
+        width: 9%;
         height: 61%;
-        margin: 0 -3.15%;
+        margin: 0 -4.5%;
         border: 1px solid #050407;
         border-radius: 0 0 6px 6px;
         background: linear-gradient(90deg, #100e13, #343039 44%, #0c0b0f 88%);
@@ -375,6 +395,9 @@
             <button class="hand" data-hand="left">Левая рука</button>
           </div>
           <div class="actions">
+            <button class="action midi" id="midi" aria-live="polite">
+              ◉ Подключить MIDI
+            </button>
             <button class="action" id="stop">■ Стоп</button>
             <button class="action primary" id="play">▶ Сыграть дуэт</button>
           </div>
@@ -388,8 +411,8 @@
             aria-label="Клавиатура пианино"
           ></div>
           <p class="hint">
-            Октавы переключаются мышкой · A W S E D F T G Y H U J K O L P ; ·
-            Пробел — пауза
+            MIDI-клавиатура · Рамка показывает октаву для клавиш A W S E D F T
+            G Y H U J · Пробел — пауза
           </p>
         </div>
         <div class="score">
@@ -425,11 +448,6 @@
         ["A", "H", 0],
         ["A#", "U", 1],
         ["B", "J", 0],
-        ["C+", "K", 0],
-        ["C#+", "O", 1],
-        ["D+", "L", 0],
-        ["D#+", "P", 1],
-        ["E+", ";", 0],
       ];
       const score = { right: [], left: [] };
       const keyBindings = new Map();
@@ -440,28 +458,40 @@
       let hand = "right";
       let octave = 4;
       let timers = [];
+      let midiAccess;
+      const midiNotes = new Map();
 
-      function noteName(name) {
-        const next = name.endsWith("+");
-        return name.replace("+", "") + (octave + (next ? 1 : 0));
-      }
       function buildKeyboard() {
         board.innerHTML = "";
         keyBindings.clear();
-        layout.forEach(([name, binding, black]) => {
-          const note = noteName(name);
-          const key = document.createElement("button");
-          key.className = "key " + (black ? "black" : "white");
-          key.dataset.note = note;
-          key.ariaLabel = note;
-          key.innerHTML = `<span>${binding}</span>`;
-          board.append(key);
-          keyBindings.set(binding.toLowerCase(), key);
-          key.onpointerdown = (e) => {
-            e.preventDefault();
-            sound(note, key, true);
-          };
-          key.onpointerup = key.onpointerleave = () => lift(note, key);
+        [2, 3, 4, 5, 6].forEach((octaveNumber) => {
+          const octaveElement = document.createElement("div");
+          octaveElement.className =
+            "piano-octave" + (octaveNumber === octave ? " active" : "");
+          octaveElement.dataset.octave = octaveNumber;
+          octaveElement.ariaLabel = `Октава ${octaveNumber}`;
+
+          layout.forEach(([name, binding, black]) => {
+            const note = name + octaveNumber;
+            const key = document.createElement("button");
+            const isKeyboardOctave = octaveNumber === octave;
+            key.className = "key " + (black ? "black" : "white");
+            key.dataset.note = note;
+            key.ariaLabel = note;
+            key.innerHTML = `<span>${isKeyboardOctave ? binding : ""}</span>`;
+            octaveElement.append(key);
+
+            if (isKeyboardOctave) {
+              keyBindings.set(binding.toLowerCase(), key);
+            }
+            key.onpointerdown = (event) => {
+              event.preventDefault();
+              sound(note, key, true);
+            };
+            key.onpointerup = key.onpointerleave = () => lift(note, key);
+          });
+
+          board.append(octaveElement);
         });
       }
       [2, 3, 4, 5, 6].forEach((value) => {
@@ -548,6 +578,78 @@
           .querySelectorAll(".key.active")
           .forEach((k) => k.classList.remove("active"));
       }
+
+      function midiNoteName(number) {
+        const names = [
+          "C",
+          "C#",
+          "D",
+          "D#",
+          "E",
+          "F",
+          "F#",
+          "G",
+          "G#",
+          "A",
+          "A#",
+          "B",
+        ];
+        return names[number % 12] + (Math.floor(number / 12) - 1);
+      }
+
+      function handleMidiMessage(event) {
+        const [command, number, velocity = 0] = event.data;
+        const messageType = command & 0xf0;
+        const note = midiNoteName(number);
+        const key = document.querySelector(`[data-note="${note}"]`);
+
+        if (messageType === 0x90 && velocity > 0) {
+          if (midiNotes.has(number)) return;
+          midiNotes.set(number, note);
+          if (key) key.classList.add("active");
+          pianoAudio.press(note, undefined, velocity / 127);
+          score[hand].push({ note, interval: 400 });
+          render(hand);
+          return;
+        }
+
+        if (messageType === 0x80 || (messageType === 0x90 && velocity === 0)) {
+          midiNotes.delete(number);
+          lift(note, key);
+        }
+      }
+
+      function connectMidiInputs() {
+        for (const input of midiAccess.inputs.values()) {
+          input.onmidimessage = handleMidiMessage;
+        }
+
+        const connectedInputs = [...midiAccess.inputs.values()].filter(
+          (input) => input.state === "connected",
+        );
+        const midiButton = document.querySelector("#midi");
+        midiButton.classList.toggle("connected", connectedInputs.length > 0);
+        midiButton.textContent = connectedInputs.length
+          ? `● MIDI: ${connectedInputs[0].name || "подключено"}`
+          : "◉ Подключите MIDI-клавиатуру";
+      }
+
+      async function enableMidi() {
+        const midiButton = document.querySelector("#midi");
+        if (!navigator.requestMIDIAccess) {
+          midiButton.textContent = "MIDI не поддерживается";
+          return;
+        }
+
+        midiButton.textContent = "Подключение…";
+        try {
+          midiAccess = await navigator.requestMIDIAccess();
+          midiAccess.onstatechange = connectMidiInputs;
+          connectMidiInputs();
+        } catch {
+          midiButton.textContent = "Нет доступа к MIDI";
+        }
+      }
       function play() {
         stop();
         ["left", "right"].forEach((part) => {
@@ -589,6 +691,7 @@
       );
       document.querySelector("#play").onclick = play;
       document.querySelector("#stop").onclick = stop;
+      document.querySelector("#midi").onclick = enableMidi;
       const held = new Set();
       onkeydown = (e) => {
         if (e.code === "Space") {
