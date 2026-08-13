@@ -63,3 +63,22 @@ test('3D pages declare Three.js and the FPS counter', async ({ request }) => {
     expect(html).toContain('fps-counter.js');
   }
 });
+
+
+test('every game includes working shared audio controls', async ({ page }) => {
+  const gamePaths = [
+    ...canvasGames,
+    '/2d/tic-tac-toe.html', '/2d/minesweeper.html',
+    '/3d/bowling.html', '/3d/breakout-3d.html', '/3d/invaders-3d.html',
+    '/3d/asteroids-3d.html', '/3d/snake-3d.html', '/3d/platformer-3d.html',
+  ];
+
+  for (const gamePath of gamePaths) {
+    await page.goto(gamePath);
+    const audioToggle = page.locator('.game-audio-toggle');
+    await expect(audioToggle).toBeVisible();
+    await expect(audioToggle).toHaveAttribute('aria-label', /sound|music/i);
+    await audioToggle.click();
+    await expect(audioToggle).toHaveAttribute('aria-pressed', /true|false/);
+  }
+});
