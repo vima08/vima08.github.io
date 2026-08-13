@@ -16,6 +16,7 @@ const expectedGames = [
   '/2d/platformer.html',
   '/2d/tablet-platformer.html',
   '/2d/paper.html',
+  '/2d/piano.html',
   '/3d/bowling.html',
   '/3d/breakout-3d.html',
   '/3d/invaders-3d.html',

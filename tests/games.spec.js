@@ -87,3 +87,15 @@ test('every game includes working shared audio controls', async ({ page }) => {
     await expect(audioToggle).toHaveAttribute('aria-pressed', /true|false/);
   }
 });
+
+test('virtual piano records independent hands and edits intervals', async ({ page }) => {
+  await page.goto('/2d/piano.html');
+  await page.getByRole('button', { name: 'C4' }).click();
+  await expect(page.locator('#right-notes .note')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Левая рука' }).click();
+  await page.getByRole('button', { name: 'D4' }).click();
+  await expect(page.locator('#left-notes .note')).toHaveCount(1);
+  await page.locator('#left-notes select').selectOption('800');
+  await expect(page.locator('#left-notes select')).toHaveValue('800');
+  await expect(page.getByRole('button', { name: 'Сыграть дуэт' })).toBeVisible();
+});

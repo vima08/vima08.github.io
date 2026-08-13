@@ -25,6 +25,7 @@
 | `platformer.html` | Canvas 2D + DOM controls | Уровни из платформ, физика прыжка, враги, пули, HUD, респавн, touch и tilt input. |
 | `tablet-platformer.html` | Canvas 2D + DOM controls | Платформенная физика, Device Orientation API, разрешение сенсоров и variable-height jump по касанию. |
 | `paper.html` | Canvas 2D + DOM controls | Модель сегментов бумаги, валидация сгиба, интерполяция анимации и преобразование мировых координат. |
+| `piano.html` | DOM/CSS + Web Audio | Две последовательности нот, редактируемые интервалы, параллельный планировщик партий и отдельный синтезатор `piano-audio.js`. |
 
 ## Потоки выполнения
 
