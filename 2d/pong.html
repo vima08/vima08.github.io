@@ -108,6 +108,7 @@
 
     function scorePoint(player, direction) {
       player.score += 1;
+      window.gameAudio?.play('score');
       burst(W / 2, H / 2, player.color, 32, 230);
       if (player.score >= SETTINGS.targetScore) {
         winner = player;
@@ -146,6 +147,7 @@
       ball.vy = Math.sin(angle) * nextSpeed;
       ball.x = direction < 0 ? paddle.x + paddle.w + ball.r : paddle.x - ball.r;
       burst(ball.x, ball.y, paddle.color, 10, 150);
+      window.gameAudio?.play('bounce');
     }
 
     function updateBall(dt) {
@@ -167,10 +169,12 @@
           ball.y = 16 + ball.r;
           ball.vy *= -1;
           burst(ball.x, ball.y, '#ffffff', 5, 90);
+          window.gameAudio?.play('bounce');
         } else if (ball.y + ball.r >= H - 16 && ball.vy > 0) {
           ball.y = H - 16 - ball.r;
           ball.vy *= -1;
           burst(ball.x, ball.y, '#ffffff', 5, 90);
+          window.gameAudio?.play('bounce');
         }
 
         resolvePaddleHit(left, -1);

@@ -174,6 +174,7 @@
       ball.vy = -Math.cos(angle) * speed;
       ball.y = paddle.y - ball.r;
       spawnImpact(ball.x, ball.y, '#5af2ff', 8);
+      window.gameAudio?.play('bounce');
       shake = 2;
     }
 
@@ -182,6 +183,7 @@
       score += 10;
       const color = ROW_COLORS[brick.row];
       spawnImpact(ball.x, ball.y, color, 17);
+      window.gameAudio?.play('brick');
       shake = 4;
 
       // Для программиста: предыдущая позиция отличает боковой удар от вертикального и устраняет неверный вечный flip по Y.
@@ -200,6 +202,7 @@
       }
 
       if (bricks.every((item) => !item.alive)) {
+        window.gameAudio?.play('success');
         state = 'won';
         ball.vx = ball.vy = 0;
         spawnImpact(W / 2, H / 2, '#fff1a8', 60);
@@ -208,6 +211,7 @@
     }
 
     function loseBall() {
+      window.gameAudio?.play('lose');
       lives = Math.max(0, lives - 1);
       if (lives === 0) {
         state = 'lost';

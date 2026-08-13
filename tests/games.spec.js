@@ -78,6 +78,11 @@ test('every game includes working shared audio controls', async ({ page }) => {
     const audioToggle = page.locator('.game-audio-toggle');
     await expect(audioToggle).toBeVisible();
     await expect(audioToggle).toHaveAttribute('aria-label', /sound|music/i);
+    const volume = page.locator('.game-audio-volume');
+    await expect(volume).toBeVisible();
+    await expect(volume).toHaveAttribute('aria-label', /volume/i);
+    await volume.fill('35');
+    await expect(volume).toHaveValue('35');
     await audioToggle.click();
     await expect(audioToggle).toHaveAttribute('aria-pressed', /true|false/);
   }
