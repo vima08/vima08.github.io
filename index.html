@@ -159,5 +159,36 @@
 
       <footer>Built with Canvas 2D, DOM and Three.js · Each game remains a standalone page.</footer>
     </main>
-  </body>
+  <script src="/gamepad-controls.js"></script>
+  <script>
+    (() => {
+      const cards = [...document.querySelectorAll('.game-card')];
+      let active = Math.max(0, Number(sessionStorage.getItem('gamepad-menu-index')) || 0);
+      function select(index) {
+        active = Math.max(0, Math.min(cards.length - 1, index));
+        cards[active].focus({ preventScroll: true });
+        cards[active].scrollIntoView({ block: 'nearest' });
+        sessionStorage.setItem('gamepad-menu-index', active);
+      }
+      addEventListener('keydown', (event) => {
+        if (!document.documentElement.dataset.gamepad || !event.key.startsWith('Arrow')) return;
+        event.preventDefault();
+        if (event.key === 'ArrowLeft') return select(active - 1);
+        if (event.key === 'ArrowRight') return select(active + 1);
+        const current = cards[active].getBoundingClientRect();
+        const candidates = cards.map((card, index) => ({ index, rect: card.getBoundingClientRect() }))
+          .filter(({ rect }) => event.key === 'ArrowDown' ? rect.top > current.top + 4 : rect.top < current.top - 4);
+        if (!candidates.length) return;
+        const targetTop = event.key === 'ArrowDown' ? Math.min(...candidates.map(x => x.rect.top)) : Math.max(...candidates.map(x => x.rect.top));
+        const row = candidates.filter(x => Math.abs(x.rect.top - targetTop) < 4);
+        const center = current.left + current.width / 2;
+        row.sort((a, b) => Math.abs(a.rect.left + a.rect.width / 2 - center) - Math.abs(b.rect.left + b.rect.width / 2 - center));
+        select(row[0].index);
+      });
+      addEventListener('keydown', (event) => {
+        if (event.code === 'Space' && document.activeElement?.classList.contains('game-card')) document.activeElement.click();
+      });
+    })();
+  </script>
+</body>
 </html>
