@@ -88,6 +88,19 @@ test('every game includes working shared audio controls', async ({ page }) => {
   }
 });
 
+test('every game loads the shared gamepad controller', async ({ request }) => {
+  const gamePaths = [
+    ...canvasGames,
+    '/2d/piano.html', '/2d/tic-tac-toe.html', '/2d/minesweeper.html',
+    '/3d/bowling.html', '/3d/breakout-3d.html', '/3d/invaders-3d.html',
+    '/3d/asteroids-3d.html', '/3d/snake-3d.html', '/3d/platformer-3d.html',
+  ];
+  for (const gamePath of gamePaths) {
+    const html = await (await request.get(gamePath)).text();
+    expect(html).toContain('<script src="/gamepad-controls.js"></script>');
+  }
+});
+
 test('virtual piano records independent hands and edits intervals', async ({ page }) => {
   await page.goto('/2d/piano.html');
   await page.getByRole('button', { name: 'C4' }).click();
