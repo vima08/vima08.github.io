@@ -103,6 +103,21 @@ test('every game except piano loads the shared gamepad controller', async ({ req
   expect(piano).not.toContain('<script src="/gamepad-controls.js"></script>');
 });
 
+test('gamepad right trigger returns to the games list', async ({ page }) => {
+  await page.addInitScript(() => {
+    const pad = {
+      axes: [0, 0],
+      buttons: Array.from({ length: 16 }, () => ({ pressed: false })),
+    };
+    window.pressRightTrigger = () => { pad.buttons[7].pressed = true; };
+    Object.defineProperty(navigator, 'getGamepads', { value: () => [pad] });
+  });
+
+  await page.goto('/2d/snake.html');
+  await page.evaluate(() => window.pressRightTrigger());
+  await expect(page).toHaveURL('/');
+});
+
 test('virtual piano records independent hands and edits intervals', async ({ page }) => {
   await page.goto('/2d/piano.html');
   await page.getByRole('button', { name: 'C4' }).click();
