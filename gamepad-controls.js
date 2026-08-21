@@ -123,6 +123,12 @@
     setKey(`${player}:b`, profile.secondary, Boolean(pad.buttons[1]?.pressed), now, false);
     setKey(`${player}:pause`, profile.pause, Boolean(pad.buttons[9]?.pressed), now, false);
     setKey(`${player}:restart`, profile.restart, Boolean(pad.buttons[3]?.pressed), now, false);
+    const home = Boolean(pad.buttons[7]?.pressed);
+    const homeId = `${player}:home`;
+    if (home && !held.has(homeId)) {
+      held.set(homeId, { key: null, nextRepeat: Infinity });
+      document.querySelector('.games-home')?.click();
+    } else if (!home) held.delete(homeId);
     const click = Boolean(pad.buttons[0]?.pressed);
     const clickId = `${player}:cursor-click`;
     if (cursorEnabled && click && !held.has(clickId)) { held.set(clickId, { key: null, nextRepeat: Infinity }); clickAtCursor(); }
